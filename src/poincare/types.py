@@ -146,7 +146,7 @@ def initial(*, default: float | Constant | None = None) -> Variable:
     ),
 )
 class System:
-    _annotations: dict[str, Variable | Derivative | System]
+    _annotations: dict[str, type[Variable | Derivative | System]]
     _required: set[str]
 
     def __init_subclass__(cls) -> None:
@@ -155,11 +155,21 @@ class System:
         for k in ("_annotations", "_required"):
             del cls._annotations[k]
 
+        mismatched_types: list[tuple[str, type, type]] = []
         cls._required = set()
-        for k in cls._annotations:
+        for k, annotation in cls._annotations.items():
             v = getattr(cls, k)
+            if not isinstance(v, annotation):
+                mismatched_types.append((k, annotation, type(v)))
             if isinstance(v, (Variable, Derivative)) and v.initial is None:
                 cls._required.add(k)
+
+        if len(mismatched_types) > 0:
+            raise TypeError(
+                "\n".join(
+                    [f"{k} expected {ann} got {t}" for k, ann, t in mismatched_types]
+                )
+            )
 
     def __init__(self, *args, **kwargs):
         if len(args) > 0:
