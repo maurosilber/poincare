@@ -49,6 +49,28 @@ def test_automatic_derivative():
     assert is_derivative(Model.p.vx, Model.x)
 
 
+def test_automatic_higher_order_derivative():
+    """The derivative is not explicitly created,
+    but is created to maintain the relationship inside Particle."""
+
+    class SecondOrder(System):
+        x: Variable = initial()
+        x1 = x.derive()
+        x2 = x1.derive()
+
+    class Model(System):
+        x = Variable()
+        p = SecondOrder(x=x)
+
+    assert is_same_variable(Model.p.x, Model.x)
+
+    # Maintain inner relationship from Particle
+    assert is_derivative(Model.p.x2, Model.p.x)
+
+    # The derivative is linked to the outside Variable
+    assert is_derivative(Model.p.x2, Model.x)
+
+
 def test_implicit_assignment():
     """Implicit assignment p.vx = vx"""
 
