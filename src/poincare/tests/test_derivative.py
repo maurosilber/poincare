@@ -1,12 +1,12 @@
 from pytest import raises
 
-from ..types import System, Variable
+from ..types import Derivative, System, Variable, initial
 from .utils import is_derivative, is_same_variable
 
 
 class Particle(System):
-    x: Variable = Variable(default=0)
-    vx: Variable = x.derive(default=1)
+    x: Variable = initial(default=0)
+    vx: Derivative = x.derive(initial=1)
 
 
 def test_is_derivative():
@@ -32,46 +32,6 @@ def test_duplicate_derivatives():
     assert is_derivative(Model.x2, Model.x)
 
 
-def test_explicit_assignment():
-    class Model(System):
-        x = Variable()
-        vx = x.derive()
-        p = Particle(x=x, vx=vx)
-
-    assert is_same_variable(Model.p.x, Model.x)
-    assert is_same_variable(Model.p.vx, Model.vx)
-
-    # Direct relationship
-    assert is_derivative(Model.vx, Model.x)
-
-    # Maintain inner relationship from Particle
-    assert is_derivative(Model.p.vx, Model.p.x)
-
-    # The derivative is linked to the outside Variable
-    assert is_derivative(Model.p.vx, Model.x)
-
-
-def test_implicit_assignment():
-    """Implicit assignment p.vx = vx
-
-    The derivative is no explicitly passed as argument,
-    but is created.
-    """
-
-    class Model(System):
-        x = Variable()
-        vx = x.derive()
-        p = Particle(x=x)
-
-    assert is_same_variable(Model.p.x, Model.x)
-
-    # Maintain inner relationship from Particle
-    assert is_derivative(Model.p.vx, Model.p.x)
-
-    # The derivative is linked to the outside Variable
-    assert is_derivative(Model.p.vx, Model.x)
-
-
 def test_automatic_derivative():
     """The derivative is not explicitly created,
     but is created to maintain the relationship inside Particle."""
@@ -89,25 +49,25 @@ def test_automatic_derivative():
     assert is_derivative(Model.p.vx, Model.x)
 
 
-def test_disallow_automatically_linked_integral():
-    """Assigning only the derivarive is not allowed.
-    The root variable of Particle must be explicitly assigned.
-
-    This is the reverse behaviour from test_automatically_linked_variable.
-    """
-
-    with raises(TypeError, match="missing variable"):
-
-        class WrongModel(System):
-            vx = Variable()
-            p = Particle(vx=vx)
+def test_implicit_assignment():
+    """Implicit assignment p.vx = vx"""
 
     class Model(System):
-        vx = Variable()
-        p = Particle(x=vx.integral(), vx=vx)
+        x = Variable()
+        vx: Derivative = x.derive()
+        p = Particle(x=x)
+
+    assert is_same_variable(Model.p.x, Model.x)
+
+    # Maintain inner relationship from Particle
+    assert is_derivative(Model.p.vx, Model.p.x)
+
+    # The derivative is linked to the outside Variable
+    assert is_derivative(Model.p.vx, Model.x)
+    assert is_same_variable(Model.p.vx, Model.vx)
 
 
-def test_disallow_unlinked_variables():
+def test_raise_on_non_derivative():
     """Explicitly assigning variables which do not have
     a derivative relationship is not allowed.
 
@@ -115,9 +75,24 @@ def test_disallow_unlinked_variables():
     it would create a hidden derivative relationship.
     """
 
-    with raises(TypeError, match="unlinked"):
+    with raises(TypeError, match="initial"):
 
         class WrongModel(System):
             x = Variable()
             vx = Variable()
-            p = Particle(x=x, vx=vx)
+            p = Particle(
+                x=x,
+                vx=vx,  # type: ignore
+            )
+
+
+def test_raise_on_explicit_assignment():
+    with raises(TypeError, match="initial"):
+
+        class WrongModel(System):
+            x = Variable()
+            vx = x.derive()
+            p = Particle(
+                x=x,
+                vx=vx,  # type: ignore
+            )
