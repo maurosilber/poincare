@@ -54,18 +54,18 @@ def test_automatic_higher_order_derivative():
     but is created to maintain the relationship inside Particle."""
 
     class SecondOrder(System):
-        x: Variable = initial()
-        x1 = x.derive()
+        x0: Variable = initial()
+        x1 = x0.derive()
         x2 = x1.derive()
 
     class Model(System):
         x = Variable()
-        p = SecondOrder(x=x)
+        p = SecondOrder(x0=x)
 
-    assert is_same_variable(Model.p.x, Model.x)
+    assert is_same_variable(Model.p.x0, Model.x)
 
     # Maintain inner relationship from Particle
-    assert is_derivative(Model.p.x2, Model.p.x)
+    assert is_derivative(Model.p.x2, Model.p.x0)
 
     # The derivative is linked to the outside Variable
     assert is_derivative(Model.p.x2, Model.x)

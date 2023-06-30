@@ -17,16 +17,20 @@ class Constant(symbolite.scalar.ScalarConstant):
 
 class Variable(symbolite.Scalar):
     name: str
+    derivatives: dict[int, float | None]
 
     def __init__(self, *, initial: float | Constant | None = None):
-        # dataclass_transform expects a `default` kw-only parameter.
         self.initial = initial
+        self.derivatives = {}
 
     def derive(self, *, initial: float | None = None) -> Derivative:
-        return Derivative(self, initial=initial, order=1)
+        order = 1
+        if self.derivatives.setdefault(order, initial) != initial:
+            raise ValueError
+        return Derivative(self, order=order)
 
     def integrate(self, *, initial: float | None = None) -> Derivative:
-        return Derivative(self, initial=initial, order=-1)
+        raise NotImplementedError
 
     def __set_name__(self, obj, name: str):
         object.__setattr__(self, "name", name)
@@ -43,7 +47,7 @@ class Variable(symbolite.Scalar):
             pass
         elif isinstance(value, (int, float)):
             value = Variable(initial=value)
-            value.__set_name__(None, self.name)
+            value.__set_name__(obj, self.name)
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
@@ -63,12 +67,10 @@ class Derivative(Variable):
         self,
         variable: Variable,
         *,
-        initial: float | None = None,
         order: int = 1,
     ):
         self.variable = variable
         self.order = order
-        self.initial = initial
 
     def __set_name__(self, obj, name: str):
         object.__setattr__(self, "name", name)
@@ -76,11 +78,11 @@ class Derivative(Variable):
     def __get__(self, obj, cls):
         if obj is None:
             return self
-        
+
         name = self.variable.name
         variable = getattr(obj, name)
-        return Derivative(variable, initial=self.initial, order=self.order)
-        
+        return Derivative(variable, order=self.order)
+
     def __set__(self, obj, value: float):
         """Allows to override the annotation in System.__init__."""
         # For:
@@ -92,11 +94,18 @@ class Derivative(Variable):
         if not isinstance(value, (int, float)):
             raise TypeError(f"expected an initial value for {self.name}")
 
+    @property
+    def initial(self):
+        return self.variable.derivatives[self.order]
+
     def derive(self, *, initial: float | None = None) -> Derivative:
-        return Derivative(self.variable, initial=initial, order=self.order + 1)
+        order = self.order + 1
+        if self.variable.derivatives.setdefault(order, initial) != initial:
+            raise ValueError
+        return Derivative(self.variable, order=order)
 
     def integrate(self, *, initial: float | None = None) -> Derivative:
-        return Derivative(self.variable, initial=initial, order=self.order + -1)
+        raise NotImplementedError
 
     def __lshift__(self, other: float | Constant | Variable | Call) -> Equation:
         return Equation(self, other)
