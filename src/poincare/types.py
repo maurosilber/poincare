@@ -147,10 +147,19 @@ class Derivative(Variable):
     def __get__(self, obj, cls):
         if obj is None:
             return self
-
-        name = self.variable.name
-        variable = getattr(obj, name)
-        return Derivative(variable, order=self.order)
+        
+        try:
+            variable: Variable = obj.__dict__[self.variable.name]
+        except KeyError:
+            return self
+        else:
+            derivative = _derive(
+                variable=variable,
+                order=self.order,
+                initial=self.initial,
+            )
+            obj.__dict__[self.name] = derivative
+            return derivative
 
     def __set__(self, obj, value: float):
         """Allows to override the annotation in System.__init__."""
