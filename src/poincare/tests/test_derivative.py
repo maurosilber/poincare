@@ -24,7 +24,7 @@ def test_duplicate_derivatives():
 
     class Model(System):
         x = Variable()
-        x1 = x.derive()
+        x1 = x.derive(initial=0.)
         x2 = x.derive()
 
     assert is_same_variable(Model.x1, Model.x2)
@@ -55,8 +55,8 @@ def test_automatic_higher_order_derivative():
 
     class SecondOrder(System):
         x0: Variable = initial()
-        x1 = x0.derive()
-        x2 = x1.derive()
+        x1 = x0.derive(initial=0)
+        x2 = x1.derive(initial=0)
 
     class Model(System):
         x = Variable()
@@ -76,7 +76,7 @@ def test_implicit_assignment():
 
     class Model(System):
         x = Variable()
-        vx: Derivative = x.derive()
+        vx: Derivative = x.derive(initial=0)
         p = Particle(x=x)
 
     assert is_same_variable(Model.p.x, Model.x)
@@ -113,7 +113,7 @@ def test_raise_on_explicit_assignment():
 
         class WrongModel(System):
             x = Variable()
-            vx = x.derive()
+            vx = x.derive(initial=0)
             p = Particle(
                 x=x,
                 vx=vx,  # type: ignore

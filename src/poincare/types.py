@@ -2,35 +2,103 @@ from __future__ import annotations
 
 from typing import get_type_hints as get_annotations
 
-import symbolite
-from symbolite.abstract.symbol import Call
+from symbolite import Scalar
 from typing_extensions import Self, dataclass_transform, overload
 
 
-class Constant(symbolite.scalar.ScalarConstant):
-    def __init__(self, *, default: float | None = None):
+class Constant(Scalar):
+    def __init__(self, *, default: float | Constant | None = None):
         self.default = default
 
-    def __lshift__(self, other):
-        raise TypeError("unsupported operand")
+
+def _deriva(
+    *,
+    variable: Variable,
+    order: int,
+    initial: float | Constant | None,
+) -> Derivative:
+    if initial is None:
+        pass
+    elif isinstance(initial, (int, float, complex, Constant)):
+        if variable.order_equation is not None and order >= (
+            eq_order := variable.order_equation[0]
+        ):
+            raise ValueError(f"already assigned an equation to order {eq_order}")
+        elif order in variable.derivatives:
+            value = variable.derivatives[order]
+            raise ValueError(f"already assigned an initial value: {value}")
+        else:
+            variable.derivatives[order] = initial
+    else:
+        raise TypeError(f"unexpected type {type(initial)} for initial")
+
+    return Derivative(variable, order=order)
 
 
-class Variable(symbolite.Scalar):
+def _assign_equation(
+    *,
+    variable: Variable,
+    order: int,
+    expression: Variable | Constant,
+) -> Equation:
+    if variable.order_equation is not None:
+        eq_order = variable.order_equation[0]
+        raise ValueError(f"already assigned an equation to order {eq_order}")
+    elif order <= (max_order_initial := max(variable.derivatives.keys())):
+        raise ValueError(
+            f"already assigned an initial to a higher order {max_order_initial}"
+        )
+    else:
+        equation = Equation(
+            _deriva(variable=variable, order=order, initial=None),
+            expression,
+        )
+        variable.order_equation = order, equation
+        return equation
+
+
+class Variable(Scalar):
     name: str
-    derivatives: dict[int, float | None]
+    derivatives: dict[int, float | Constant | None]
+    order_equation: tuple[int, Equation] | None = None
 
     def __init__(self, *, initial: float | Constant | None = None):
-        self.initial = initial
-        self.derivatives = {}
+        self.derivatives = {0: initial}
 
-    def derive(self, *, initial: float | None = None) -> Derivative:
-        order = 1
-        if self.derivatives.setdefault(order, initial) != initial:
-            raise ValueError
-        return Derivative(self, order=order)
+    @property
+    def initial(self):
+        return self.derivatives[0]
 
-    def integrate(self, *, initial: float | None = None) -> Derivative:
-        raise NotImplementedError
+    @overload
+    def derive(
+        self,
+        *,
+        initial: None = None,
+        assign: Variable | Constant,
+    ) -> Equation:
+        ...
+
+    @overload
+    def derive(
+        self,
+        *,
+        initial: float | Constant | None = None,
+        assign: None = None,
+    ) -> Derivative:
+        ...
+
+    def derive(
+        self,
+        *,
+        initial=None,
+        assign=None,
+    ):
+        if initial is not None and assign is not None:
+            raise ValueError("cannot assign initial and equation.")
+        elif assign is not None:
+            return _assign_equation(variable=self, order=1, expression=assign)
+        else:
+            return _deriva(variable=self, order=1, initial=initial)
 
     def __set_name__(self, obj, name: str):
         object.__setattr__(self, "name", name)
@@ -98,17 +166,37 @@ class Derivative(Variable):
     def initial(self):
         return self.variable.derivatives[self.order]
 
-    def derive(self, *, initial: float | None = None) -> Derivative:
+    @overload
+    def derive(
+        self,
+        *,
+        initial: None = None,
+        assign: Variable | Constant,
+    ) -> Equation:
+        ...
+
+    @overload
+    def derive(
+        self,
+        *,
+        initial: float | Constant | None = None,
+        assign: None = None,
+    ) -> Derivative:
+        ...
+
+    def derive(
+        self,
+        *,
+        initial=None,
+        assign=None,
+    ):
         order = self.order + 1
-        if self.variable.derivatives.setdefault(order, initial) != initial:
-            raise ValueError
-        return Derivative(self.variable, order=order)
-
-    def integrate(self, *, initial: float | None = None) -> Derivative:
-        raise NotImplementedError
-
-    def __lshift__(self, other: float | Constant | Variable | Call) -> Equation:
-        return Equation(self, other)
+        if initial is not None and assign is not None:
+            raise ValueError("cannot assign initial and equation.")
+        elif assign is not None:
+            return _assign_equation(variable=self.variable, order=order, expression=assign)
+        else:
+            return _deriva(variable=self.variable, order=order, initial=initial)
 
     def __eq__(self, other: Self) -> bool:
         if other.__class__ is not self.__class__:
@@ -121,7 +209,7 @@ class Derivative(Variable):
 
 
 class Equation:
-    def __init__(self, lhs: Derivative, rhs: float | Constant | Variable | Call):
+    def __init__(self, lhs: Derivative, rhs: float | Constant | Variable):
         self.lhs = lhs
         self.rhs = rhs
 
@@ -132,13 +220,13 @@ def assign(*, default: float | Constant) -> Constant:
 
 
 @overload
-def assign(*, default: Variable | Call) -> Call:
+def assign(*, default: Variable) -> Variable:
     ...
 
 
 def assign(*, default):
     if isinstance(default, Variable):
-        return 1.0 * default
+        return default
     else:
         return Constant(default=default)
 
@@ -206,14 +294,3 @@ class System:
         components = [getattr(self, k) for k in self._annotations]
         components = ", ".join(map(repr, components))
         return f"{name}({components})"
-
-
-if __name__ == "__main__":
-
-    class Particle(System):
-        x: Variable = initial()
-        vx: Derivative = x.derive()
-        y = Variable(initial=0)
-        vy = y.derive(initial=0)
-
-    Particle(x=0, vx=0)
