@@ -24,7 +24,7 @@ def test_duplicate_derivatives():
 
     class Model(System):
         x = Variable()
-        x1 = x.derive(initial=0.)
+        x1 = x.derive(initial=0.0)
         x2 = x.derive()
 
     assert is_same_variable(Model.x1, Model.x2)
@@ -69,6 +69,25 @@ def test_automatic_higher_order_derivative():
 
     # The derivative is linked to the outside Variable
     assert is_derivative(Model.p.x2, Model.x)
+
+
+def test_colliding_implicit_assignment():
+    """Implicit assignment p.vx = vx"""
+
+    class Particle1(System):
+        x: Variable = initial()
+        vx = x.derive(initial=1)
+
+    class Particle2(System):
+        x: Variable = initial()
+        vx = x.derive(initial=2)
+
+    with raises(ValueError, match="colliding"):
+
+        class Model(System):
+            x = Variable()
+            p1 = Particle1(x=x)
+            p2 = Particle2(x=x)
 
 
 def test_implicit_assignment():

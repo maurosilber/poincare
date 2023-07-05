@@ -25,8 +25,7 @@ def _derive(
             eq_order := variable.order_equation[0]
         ):
             raise ValueError(f"already assigned an equation to order {eq_order}")
-        elif order in variable.derivatives:
-            value = variable.derivatives[order]
+        elif (value := variable.derivatives.get(order)) is not None:
             raise ValueError(f"already assigned an initial value: {value}")
         else:
             variable.derivatives[order] = initial
@@ -121,15 +120,11 @@ class Variable(Scalar):
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
         for order, initial in self.derivatives.items():
-            try:
-                current_value = value.derivatives[order]
-            except KeyError:
-                value.derivatives[order] = initial
-            else:
-                if current_value is None:
-                    value.derivatives[order] = initial
-                elif current_value != initial:
-                    raise ValueError(f"colliding initial condition for {self.name}")
+            if order not in value.derivatives:
+                # We have to differentiate if it was added:
+                # - top-level: overrides any value in sub-Systems
+                # - lower-levels: set by another sub-System (collison)
+                _derive(variable=value, order=order, initial=initial)
 
         obj.__dict__[self.name] = value
 
