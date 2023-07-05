@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import ClassVar, get_type_hints as get_annotations
+from typing import ClassVar
+from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar
 from typing_extensions import Self, dataclass_transform, overload
@@ -11,7 +12,7 @@ class Constant(Scalar):
         self.default = default
 
 
-def _deriva(
+def _derive(
     *,
     variable: Variable,
     order: int,
@@ -50,7 +51,7 @@ def _assign_equation(
         )
     else:
         equation = Equation(
-            _deriva(variable=variable, order=order, initial=None),
+            _derive(variable=variable, order=order, initial=None),
             expression,
         )
         variable.order_equation = order, equation
@@ -98,7 +99,7 @@ class Variable(Scalar):
         elif assign is not None:
             return _assign_equation(variable=self, order=1, expression=assign)
         else:
-            return _deriva(variable=self, order=1, initial=initial)
+            return _derive(variable=self, order=1, initial=initial)
 
     def __set_name__(self, obj, name: str):
         object.__setattr__(self, "name", name)
@@ -198,7 +199,7 @@ class Derivative(Variable):
                 variable=self.variable, order=order, expression=assign
             )
         else:
-            return _deriva(variable=self.variable, order=order, initial=initial)
+            return _derive(variable=self.variable, order=order, initial=initial)
 
     def __eq__(self, other: Self) -> bool:
         if other.__class__ is not self.__class__:
