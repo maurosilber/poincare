@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import get_type_hints as get_annotations
+from typing import ClassVar, get_type_hints as get_annotations
 
 from symbolite import Scalar
 from typing_extensions import Self, dataclass_transform, overload
@@ -74,7 +74,7 @@ class Variable(Scalar):
         self,
         *,
         initial: None = None,
-        assign: Variable | Constant,
+        assign: float | Constant | Variable,
     ) -> Equation:
         ...
 
@@ -171,7 +171,7 @@ class Derivative(Variable):
         self,
         *,
         initial: None = None,
-        assign: Variable | Constant,
+        assign: float | Constant | Variable,
     ) -> Equation:
         ...
 
@@ -194,7 +194,9 @@ class Derivative(Variable):
         if initial is not None and assign is not None:
             raise ValueError("cannot assign initial and equation.")
         elif assign is not None:
-            return _assign_equation(variable=self.variable, order=order, expression=assign)
+            return _assign_equation(
+                variable=self.variable, order=order, expression=assign
+            )
         else:
             return _deriva(variable=self.variable, order=order, initial=initial)
 
@@ -243,8 +245,8 @@ def initial(*, default: float | Constant | None = None) -> Variable:
     ),
 )
 class System:
-    _annotations: dict[str, type[Variable | Derivative | System]]
-    _required: set[str]
+    _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
+    _required: ClassVar[set[str]]
 
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)
@@ -252,6 +254,7 @@ class System:
         for k in ("_annotations", "_required"):
             del cls._annotations[k]
 
+        # Check mismatched types
         mismatched_types: list[tuple[str, type, type]] = []
         cls._required = set()
         for k, annotation in cls._annotations.items():
