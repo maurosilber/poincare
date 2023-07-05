@@ -1,6 +1,6 @@
 from pytest import raises
 
-from ..types import Constant, Scalar, System, Variable, assign, initial
+from ..types import Constant, Derivative, System, Variable, assign, initial
 from .utils import is_same_variable
 
 
@@ -31,6 +31,50 @@ def test_second_order_equation_without_first_derivative():
     class Model(System):
         x: Variable = initial(default=0)
         force = x.derive(initial=0.0).derive(assign=-x)
+
+
+def test_repeated_equations():
+    with raises(ValueError, match="assigned"):
+
+        class Model(System):
+            x: Variable = initial(default=0)
+            eq1 = x.derive(assign=1)
+            eq2 = x.derive(assign=x)
+
+
+def test_compose_equations():
+    class Constant(System):
+        x: Variable = initial(default=0)
+        eq = x.derive(assign=1)
+
+    class Proportional(System):
+        x: Variable = initial(default=0)
+        eq = x.derive(assign=x)
+
+    class Model(System):
+        x: Variable = initial(default=0)
+        const = Constant(x=x)
+        prop = Proportional(x=x)
+
+    assert Model.x.order_equation is not None
+
+
+def test_compose_equations_with_derivatives():
+    class ConstantIncrease(System):
+        x: Variable = initial(default=0)
+        eq = x.derive(assign=1)
+
+    class Drag(System):
+        x: Variable = initial(default=0)
+        vx: Derivative = x.derive(initial=0)
+        eq = vx.derive(assign=vx)
+
+    class Model(System):
+        x: Variable = initial(default=0)
+        const = ConstantIncrease(x=x)
+        prop = Drag(x=x)
+
+    assert Model.x.order_equation is None
 
 
 def test_parameter_equation():
