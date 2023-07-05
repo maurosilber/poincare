@@ -120,6 +120,17 @@ class Variable(Scalar):
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
+        for order, initial in self.derivatives.items():
+            try:
+                current_value = value.derivatives[order]
+            except KeyError:
+                value.derivatives[order] = initial
+            else:
+                if current_value is None:
+                    value.derivatives[order] = initial
+                elif current_value != initial:
+                    raise ValueError(f"colliding initial condition for {self.name}")
+
         obj.__dict__[self.name] = value
 
     def __eq__(self, other: Self) -> bool:
