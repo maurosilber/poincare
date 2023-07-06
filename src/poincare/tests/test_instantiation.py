@@ -2,7 +2,7 @@
 
 from pytest import raises
 
-from ..types import System, Variable, initial
+from ..types import Derivative, System, Variable, initial
 
 
 def test_empty_system():
@@ -45,6 +45,15 @@ def test_wrong_default_variable():
 
         class Model(System):
             x: Variable = 0  # type: ignore
+
+
+def test_derivative():
+    class Model(System):
+        x: Variable = initial(default=0)
+        vx: Derivative = x.derive(initial=0)
+
+    assert Model(vx=1).vx.initial == 1
+    assert Model(x=1, vx=1).vx.initial == 1
 
 
 def test_internal_variable():
