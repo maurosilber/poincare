@@ -19,10 +19,7 @@ def test_required_variable():
     """
 
     class Model(System):
-        x: Variable = initial()
-
-    with raises(TypeError, match="missing"):
-        Model()  # type: ignore
+        x: Variable = initial(default=0)
 
     with raises(TypeError, match="positional"):
         Model(1)  # type: ignore
@@ -68,15 +65,9 @@ def test_internal_variable():
 
 def test_extended_subclass():
     class Model(System):
-        x: Variable = initial()
+        x: Variable = initial(default=0)
 
     class ExtendedModel(Model):
-        y: Variable = initial()
-
-    with raises(TypeError, match="missing"):
-        ExtendedModel(x=1)  # type: ignore
-
-    with raises(TypeError, match="missing"):
-        ExtendedModel(y=1)  # type: ignore
+        y: Variable = initial(default=0)
 
     ExtendedModel(x=1, y=1)

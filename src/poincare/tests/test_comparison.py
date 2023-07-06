@@ -8,18 +8,10 @@ from ..types import System, Variable, initial
 
 def test_initial_value():
     class Model(System):
-        x: Variable = initial()
-
-    assert Model(x=0) == Model(x=0)
-    assert Model(x=0) != Model(x=1)
-
-
-def test_default_initial_value():
-    class Model(System):
         x: Variable = initial(default=0)
 
-    assert Model() == Model(x=0)
-    assert Model() != Model(x=1)
+    assert Model(x=0) == Model()
+    assert Model(x=0) != Model(x=1)
 
 
 def test_empty_system():
@@ -37,7 +29,7 @@ def test_empty_system():
 
 def test_subclass_equal():
     class Model(System):
-        x: Variable = initial()
+        x: Variable = initial(default=0)
 
     class SubModel(Model):
         pass
@@ -47,17 +39,17 @@ def test_subclass_equal():
 
 def test_subclass_extended():
     class Model(System):
-        x: Variable = initial()
+        x: Variable = initial(default=0)
 
     class ExtendedModel(Model):
-        y: Variable = initial()
+        y: Variable = initial(default=0)
 
     assert Model(x=1) != ExtendedModel(x=1, y=1)
 
 
 def test_composition():
     class Subsystem(System):
-        x: Variable = initial()
+        x: Variable = initial(default=0)
 
     class Model(System):
         s: Subsystem = Subsystem(x=0)
