@@ -100,7 +100,7 @@ class Variable(Scalar):
                 return _create_derivative(
                     variable=variable,
                     order=order,
-                    initial=initial,
+                    initial=initial,  # type: ignore
                 )
             case (None, assign):
                 return _assign_equation(
@@ -226,7 +226,7 @@ class Derivative(Variable):
                 return _create_derivative(
                     variable=variable,
                     order=order,
-                    initial=initial,
+                    initial=initial,  # type: ignore
                 )
             case (None, assign):
                 return _assign_equation(
