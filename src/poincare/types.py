@@ -8,29 +8,31 @@ from typing_extensions import Self, dataclass_transform, overload
 
 
 class Constant(Scalar):
-    def __init__(self, *, default: float | Constant | None = None):
+    def __init__(self, *, default: Initial):
         self.default = default
 
 
-def _derive(
+Number = int | float | complex
+Initial = Number | Constant
+
+
+def _create_derivative(
     *,
     variable: Variable,
     order: int,
-    initial: float | Constant | None,
+    initial: Initial,
 ) -> Derivative:
-    if initial is None:
-        pass
-    elif isinstance(initial, (int, float, complex, Constant)):
-        if variable.equation_order is not None and order >= variable.equation_order:
-            raise ValueError(
-                f"already assigned an equation to order {variable.equation_order}"
-            )
-        elif (value := variable.derivatives.get(order)) is not None:
-            raise ValueError(f"already assigned an initial value: {value}")
-        else:
-            variable.derivatives[order] = initial
-    else:
+    if not isinstance(initial, Initial):
         raise TypeError(f"unexpected type {type(initial)} for initial")
+    elif variable.equation_order is not None and order >= variable.equation_order:
+        raise ValueError(
+            f"already assigned an equation to order {variable.equation_order}"
+        )
+    elif order in variable.derivatives:
+        value = variable.derivatives[order]
+        raise ValueError(f"already assigned an initial value: {value}")
+    else:
+        variable.derivatives[order] = initial
 
     return Derivative(variable, order=order)
 
@@ -39,7 +41,7 @@ def _assign_equation(
     *,
     variable: Variable,
     order: int,
-    expression: float | Constant | Variable,
+    expression: Initial | Variable,
 ) -> Equation:
     if variable.equation_order is not None and variable.equation_order != order:
         raise ValueError(
@@ -50,10 +52,7 @@ def _assign_equation(
             f"already assigned an initial to a higher order {max_order_initial}"
         )
     else:
-        equation = Equation(
-            _derive(variable=variable, order=order, initial=None),
-            expression,
-        )
+        equation = Equation(Derivative(variable, order=order), expression)
         variable.equation_order = order
         variable.equations.append(equation)
         return equation
@@ -61,11 +60,11 @@ def _assign_equation(
 
 class Variable(Scalar):
     name: str
-    derivatives: dict[int, float | Constant | None]
+    derivatives: dict[int, Initial]
     equation_order: int | None = None
     equations: list[Equation]
 
-    def __init__(self, *, initial: float | Constant | None = None):
+    def __init__(self, *, initial: Initial):
         self.derivatives = {0: initial}
         self.equations = []
 
@@ -78,7 +77,7 @@ class Variable(Scalar):
         self,
         *,
         initial: None = None,
-        assign: float | Constant | Variable,
+        assign: Initial | Variable,
     ) -> Equation:
         ...
 
@@ -86,38 +85,46 @@ class Variable(Scalar):
     def derive(
         self,
         *,
-        initial: float | Constant | None = None,
+        initial: Initial | None = None,
         assign: None = None,
     ) -> Derivative:
         ...
 
-    def derive(
-        self,
-        *,
-        initial=None,
-        assign=None,
-    ):
-        if initial is not None and assign is not None:
-            raise ValueError("cannot assign initial and equation.")
-        elif assign is not None:
-            return _assign_equation(variable=self, order=1, expression=assign)
-        else:
-            return _derive(variable=self, order=1, initial=initial)
+    def derive(self, *, initial=None, assign=None):
+        variable = self
+        order = 1
+        match (initial, assign):
+            case (None, None):
+                return Derivative(variable=variable, order=order)
+            case (initial, None):
+                return _create_derivative(
+                    variable=variable,
+                    order=order,
+                    initial=initial,
+                )
+            case (None, assign):
+                return _assign_equation(
+                    variable=variable,
+                    order=order,
+                    expression=assign,
+                )
+            case (initial, assign):
+                raise ValueError("cannot assign initial and equation.")
 
     def __set_name__(self, obj, name: str):
         object.__setattr__(self, "name", name)
 
-    def __set__(self, obj, value: Variable | float):
+    def __set__(self, obj, value: Variable | Initial):
         """Allows to override the annotation in System.__init__."""
         # For:
         # >>> class Model(System):
         # ...   x: Variable
         #
         # The type hint shows:
-        # >>> Model(x: Variable | float) -> None
+        # >>> Model(x: Variable | Initial) -> None
         if isinstance(value, Variable):
             pass
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, Initial):
             value = Variable(initial=value)
             value.__set_name__(obj, self.name)
         else:
@@ -128,7 +135,7 @@ class Variable(Scalar):
                 # We have to differentiate if it was added:
                 # - top-level: overrides any value in sub-Systems
                 # - lower-levels: set by another sub-System (collison)
-                _derive(variable=value, order=order, initial=initial)
+                _create_derivative(variable=value, order=order, initial=initial)
 
         if (order := self.equation_order) is not None:
             for equation in self.equations:
@@ -171,15 +178,15 @@ class Derivative(Variable):
             order=self.order,
         )
 
-    def __set__(self, obj, value: float):
+    def __set__(self, obj, value: Initial):
         """Allows to override the annotation in System.__init__."""
         # For:
         # >>> class Model(System):
         # ...   x: Derivative
         #
         # The type hint shows:
-        # >>> Model(x: float) -> None
-        if not isinstance(value, (int, float)):
+        # >>> Model(x: Initial) -> None
+        if not isinstance(value, Initial):
             raise TypeError(f"expected an initial value for {self.name}")
 
     @property
@@ -191,7 +198,7 @@ class Derivative(Variable):
         self,
         *,
         initial: None = None,
-        assign: float | Constant | Variable,
+        assign: Initial | Variable,
     ) -> Equation:
         ...
 
@@ -199,7 +206,7 @@ class Derivative(Variable):
     def derive(
         self,
         *,
-        initial: float | Constant | None = None,
+        initial: Initial | None = None,
         assign: None = None,
     ) -> Derivative:
         ...
@@ -210,15 +217,25 @@ class Derivative(Variable):
         initial=None,
         assign=None,
     ):
+        variable = self.variable
         order = self.order + 1
-        if initial is not None and assign is not None:
-            raise ValueError("cannot assign initial and equation.")
-        elif assign is not None:
-            return _assign_equation(
-                variable=self.variable, order=order, expression=assign
-            )
-        else:
-            return _derive(variable=self.variable, order=order, initial=initial)
+        match (initial, assign):
+            case None, None:
+                return Derivative(variable=variable, order=order)
+            case (initial, None):
+                return _create_derivative(
+                    variable=variable,
+                    order=order,
+                    initial=initial,
+                )
+            case (None, assign):
+                return _assign_equation(
+                    variable=variable,
+                    order=order,
+                    expression=assign,
+                )
+            case initial, assign:
+                raise ValueError("cannot assign initial and equation.")
 
     def __eq__(self, other: Self) -> bool:
         if other.__class__ is not self.__class__:
@@ -231,13 +248,13 @@ class Derivative(Variable):
 
 
 class Equation:
-    def __init__(self, lhs: Derivative, rhs: float | Constant | Variable):
+    def __init__(self, lhs: Derivative, rhs: Initial | Variable):
         self.lhs = lhs
         self.rhs = rhs
 
 
 @overload
-def assign(*, default: float | Constant) -> Constant:
+def assign(*, default: Initial) -> Constant:
     ...
 
 
@@ -253,7 +270,7 @@ def assign(*, default):
         return Constant(default=default)
 
 
-def initial(*, default: float | Constant | None = None) -> Variable:
+def initial(*, default: Initial) -> Variable:
     return Variable(initial=default)
 
 
