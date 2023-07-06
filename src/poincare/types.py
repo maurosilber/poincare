@@ -64,7 +64,7 @@ class Variable(Scalar):
     equation_order: int | None = None
     equations: list[Equation]
 
-    def __init__(self, *, initial: Initial):
+    def __init__(self, *, initial: Initial | None = None):
         self.derivatives = {0: initial}
         self.equations = []
 
@@ -270,7 +270,7 @@ def assign(*, default):
         return Constant(default=default)
 
 
-def initial(*, default: Initial) -> Variable:
+def initial(*, default: Initial | None = None) -> Variable:
     return Variable(initial=default)
 
 
