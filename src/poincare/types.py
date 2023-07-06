@@ -21,10 +21,10 @@ def _derive(
     if initial is None:
         pass
     elif isinstance(initial, (int, float, complex, Constant)):
-        if variable.order_equation is not None and order >= (
-            eq_order := variable.order_equation[0]
-        ):
-            raise ValueError(f"already assigned an equation to order {eq_order}")
+        if variable.equation_order is not None and order >= variable.equation_order:
+            raise ValueError(
+                f"already assigned an equation to order {variable.equation_order}"
+            )
         elif (value := variable.derivatives.get(order)) is not None:
             raise ValueError(f"already assigned an initial value: {value}")
         else:
@@ -39,11 +39,12 @@ def _assign_equation(
     *,
     variable: Variable,
     order: int,
-    expression: Variable | Constant,
+    expression: float | Constant | Variable,
 ) -> Equation:
-    if variable.order_equation is not None:
-        eq_order = variable.order_equation[0]
-        raise ValueError(f"already assigned an equation to order {eq_order}")
+    if variable.equation_order is not None and variable.equation_order != order:
+        raise ValueError(
+            f"already assigned an equation to order {variable.equation_order}"
+        )
     elif order <= (max_order_initial := max(variable.derivatives.keys())):
         raise ValueError(
             f"already assigned an initial to a higher order {max_order_initial}"
@@ -53,17 +54,20 @@ def _assign_equation(
             _derive(variable=variable, order=order, initial=None),
             expression,
         )
-        variable.order_equation = order, equation
+        variable.equation_order = order
+        variable.equations.append(equation)
         return equation
 
 
 class Variable(Scalar):
     name: str
     derivatives: dict[int, float | Constant | None]
-    order_equation: tuple[int, Equation] | None = None
+    equation_order: int | None = None
+    equations: list[Equation]
 
     def __init__(self, *, initial: float | Constant | None = None):
         self.derivatives = {0: initial}
+        self.equations = []
 
     @property
     def initial(self):
@@ -125,6 +129,14 @@ class Variable(Scalar):
                 # - top-level: overrides any value in sub-Systems
                 # - lower-levels: set by another sub-System (collison)
                 _derive(variable=value, order=order, initial=initial)
+
+        if (order := self.equation_order) is not None:
+            for equation in self.equations:
+                _assign_equation(
+                    variable=value,
+                    order=order,
+                    expression=equation.rhs,
+                )
 
         obj.__dict__[self.name] = value
 

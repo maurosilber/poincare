@@ -34,12 +34,13 @@ def test_second_order_equation_without_first_derivative():
 
 
 def test_repeated_equations():
-    with raises(ValueError, match="assigned"):
+    class Model(System):
+        x: Variable = initial(default=0)
+        eq1 = x.derive(assign=1)
+        eq2 = x.derive(assign=x)
 
-        class Model(System):
-            x: Variable = initial(default=0)
-            eq1 = x.derive(assign=1)
-            eq2 = x.derive(assign=x)
+    assert Model.x.equation_order == 1
+    assert len(Model.x.equations) == 2
 
 
 def test_compose_equations():
@@ -56,7 +57,8 @@ def test_compose_equations():
         const = Constant(x=x)
         prop = Proportional(x=x)
 
-    assert Model.x.order_equation is not None
+    assert Model.x.equation_order == 1
+    assert len(Model.x.equations) == 2
 
 
 def test_compose_equations_with_derivatives():
@@ -69,12 +71,12 @@ def test_compose_equations_with_derivatives():
         vx: Derivative = x.derive(initial=0)
         eq = vx.derive(assign=vx)
 
-    class Model(System):
-        x: Variable = initial(default=0)
-        const = ConstantIncrease(x=x)
-        prop = Drag(x=x)
+    with raises(ValueError, match="assigned"):
 
-    assert Model.x.order_equation is None
+        class Model(System):
+            x: Variable = initial(default=0)
+            const = ConstantIncrease(x=x)
+            prop = Drag(x=x)
 
 
 def test_parameter_equation():
