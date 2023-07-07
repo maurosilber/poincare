@@ -81,7 +81,7 @@ def test_compose_equations_with_derivatives():
 
 def test_parameter_equation():
     class Model(System):
-        t = Variable()
+        t = Variable(initial=0)
 
         k: Variable = assign(default=t)
 

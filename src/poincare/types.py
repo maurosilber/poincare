@@ -189,7 +189,8 @@ class Derivative(Variable):
         if not isinstance(value, Initial):
             raise TypeError(f"expected an initial value for {self.name}")
 
-        self.variable.derivatives[self.order] = value
+        variable = getattr(obj, self.variable.name)
+        variable.derivatives[self.order] = value
 
     @property
     def initial(self):

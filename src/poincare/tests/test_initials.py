@@ -34,6 +34,7 @@ def test_derivative():
         dict(x=1),
         dict(vx=1),
         dict(x=1, vx=1),
+        dict(vx=1, x=1),
     ],
 )
 def test_variable_and_derivative(values):
