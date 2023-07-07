@@ -90,6 +90,42 @@ def test_colliding_implicit_assignment():
             p2 = Particle2(x=x)
 
 
+def test_override_collision():
+    """Implicit assignment p.vx = vx"""
+
+    class Particle1(System):
+        x: Variable = initial(default=0)
+        vx = x.derive(initial=1)
+
+    class Particle2(System):
+        x: Variable = initial(default=0)
+        vx = x.derive(initial=2)
+
+    class Model(System):
+        x = Variable(initial=0)
+        vx = x.derive(initial=0)
+        p1 = Particle1(x=x)
+        p2 = Particle2(x=x)
+
+    assert Model.vx.initial == 0
+
+    class Model(System):
+        x = Variable(initial=0)
+        p1 = Particle1(x=x)
+        vx = x.derive(initial=0)
+        p2 = Particle2(x=x)
+
+    assert Model.vx.initial == 0
+
+    with raises(ValueError, match="override"):
+
+        class Model(System):
+            x = Variable(initial=0)
+            p1 = Particle1(x=x)
+            p2 = Particle2(x=x)
+            vx = x.derive(initial=0)
+
+
 def test_implicit_assignment():
     """Implicit assignment p.vx = vx"""
 
