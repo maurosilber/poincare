@@ -52,3 +52,25 @@ def test_variable_and_derivative(values):
     model = Model(**values)
     for k, v in expected.items():
         assert getattr(model, k).initial == v
+
+
+def test_single_composition():
+    default = 0
+    value = 1
+    inner = 2
+
+    class Particle(System):
+        x: Variable = initial(default=inner)
+
+    class Model(System):
+        x: Variable = initial(default=default)
+        p = Particle(x=x)
+
+    assert Model.x.initial == default
+    assert Model.p.x.initial == default
+
+    assert Model().x.initial == default
+    assert Model().p.x.initial == default
+
+    assert Model(x=value).x.initial == value
+    assert Model(x=value).p.x.initial == value
