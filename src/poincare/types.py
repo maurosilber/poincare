@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import ClassVar
+from typing import ClassVar, Generator
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar
@@ -76,7 +76,10 @@ class Variable(Scalar):
     parent: System
     derivatives: ChainMap[int, Initial]
     equation_order: int | None = None
-    equations: list[Equation]
+    equations: list[Scalar]
+
+    def __str__(self) -> str:
+        return str(self.parent) + "." + self.name
 
     def __init__(self, *, initial: Initial):
         self.derivatives = ChainMap({0: initial}, {})
@@ -184,6 +187,7 @@ class Variable(Scalar):
 
 
 class Derivative(Variable):
+
     def __init__(
         self,
         variable: Variable,
@@ -321,6 +325,11 @@ class System:
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
     _required: ClassVar[set[str]]
 
+    def __str__(self) -> str:
+        if self.parent is None:
+            return getattr(self, "name") or "Root"
+        return str(self.parent) + "." + self.name
+
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)
 
@@ -406,3 +415,12 @@ class System:
         name = self.__class__.__name__
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
+
+    def yield_variables(self, recursive: bool=True) -> Generator[Variable, None, None]:
+        for k in self.__class__.__dict__.keys():
+            v = getattr(self, k)
+            if isinstance(v, System):
+                if recursive is True:
+                    yield from v.yield_variables(recursive=recursive)
+            elif isinstance(v, Variable):
+                yield v
