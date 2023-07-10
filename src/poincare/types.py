@@ -126,29 +126,23 @@ class Variable(Scalar):
         # The type hint shows:
         # >>> Model(x: Variable | Initial) -> None
         if isinstance(value, Variable):
-            pass
+            for order, initial in self.derivatives.items():
+                if order not in value.derivatives:
+                    _create_derivative(variable=value, order=order, initial=initial)
+
+            if (order := self.equation_order) is not None:
+                for equation in self.equations:
+                    _assign_equation(
+                        variable=value,
+                        order=order,
+                        expression=equation.rhs,
+                    )
+            obj.__dict__[self.name] = value
         elif isinstance(value, Initial):
-            value = Variable(initial=value)
-            value.__set_name__(obj, self.name)
+            variable = getattr(obj, self.name)
+            variable.derivatives[0] = value
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
-
-        for order, initial in self.derivatives.items():
-            if order not in value.derivatives:
-                # We have to differentiate if it was added:
-                # - top-level: overrides any value in sub-Systems
-                # - lower-levels: set by another sub-System (collison)
-                _create_derivative(variable=value, order=order, initial=initial)
-
-        if (order := self.equation_order) is not None:
-            for equation in self.equations:
-                _assign_equation(
-                    variable=value,
-                    order=order,
-                    expression=equation.rhs,
-                )
-
-        obj.__dict__[self.name] = value
 
     def __get__(self, obj, cls):
         if obj is None:
@@ -159,7 +153,7 @@ class Variable(Scalar):
         except KeyError:
             cls = self.__class__
             copy = cls.__new__(cls)
-            copy.__dict__ = self.__dict__
+            copy.__dict__ = self.__dict__.copy()
             copy.derivatives = ChainMap({}, self.derivatives)
             copy.parent = obj
             obj.__dict__[self.name] = copy
