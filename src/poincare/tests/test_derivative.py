@@ -153,8 +153,8 @@ def test_raise_on_non_derivative():
     with raises(TypeError, match="initial"):
 
         class WrongModel(System):
-            x = Variable()
-            vx = Variable()
+            x = Variable(initial=0)
+            vx = Variable(initial=0)
             p = Particle(
                 x=x,
                 vx=vx,  # type: ignore
@@ -165,7 +165,7 @@ def test_raise_on_explicit_assignment():
     with raises(TypeError, match="initial"):
 
         class WrongModel(System):
-            x = Variable()
+            x = Variable(initial=0)
             vx = x.derive(initial=0)
             p = Particle(
                 x=x,
