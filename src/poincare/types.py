@@ -22,18 +22,30 @@ def _create_derivative(
     variable: Variable,
     order: int,
     initial: Initial,
+    map: int,
 ) -> Derivative:
     if not isinstance(initial, Initial):
         raise TypeError(f"unexpected type {type(initial)} for initial")
-    elif variable.equation_order is not None and order >= variable.equation_order:
+
+    if variable.equation_order is not None and order >= variable.equation_order:
         raise ValueError(
             f"already assigned an equation to order {variable.equation_order}"
         )
+
+    if map == 0:
+        try:
+            value = variable.derivatives.maps[0][order]
+            raise ValueError(f"already assigned an initial value: {value}")
+        except KeyError:
+            variable.derivatives.maps[0][order] = initial
     elif order in variable.derivatives.maps[0]:
-        value = variable.derivatives[order]
-        raise ValueError(f"already assigned an initial value: {value}")
+        pass
     else:
-        variable.derivatives[order] = initial
+        try:
+            value = variable.derivatives.maps[1][order]
+            raise ValueError(f"colliding initial value: {value}")
+        except KeyError:
+            variable.derivatives.maps[1][order] = initial
 
     return Derivative(variable, order=order)
 
@@ -103,6 +115,7 @@ class Variable(Scalar):
                     variable=variable,
                     order=order,
                     initial=initial,  # type: ignore
+                    map=0,
                 )
             case (None, assign):
                 return _assign_equation(
@@ -127,8 +140,12 @@ class Variable(Scalar):
         # >>> Model(x: Variable | Initial) -> None
         if isinstance(value, Variable):
             for order, initial in self.derivatives.items():
-                if order not in value.derivatives:
-                    _create_derivative(variable=value, order=order, initial=initial)
+                _create_derivative(
+                    variable=value,
+                    order=order,
+                    initial=initial,
+                    map=1,
+                )
 
             if (order := self.equation_order) is not None:
                 for equation in self.equations:
@@ -202,7 +219,12 @@ class Derivative(Variable):
             raise TypeError(f"expected an initial value for {self.name}")
 
         variable = getattr(obj, self.variable.name)
-        _create_derivative(variable=variable, order=self.order, initial=value)
+        _create_derivative(
+            variable=variable,
+            order=self.order,
+            initial=value,
+            map=0,
+        )
 
     @property
     def initial(self):
@@ -242,6 +264,7 @@ class Derivative(Variable):
                     variable=variable,
                     order=order,
                     initial=initial,  # type: ignore
+                    map=0,
                 )
             case (None, assign):
                 return _assign_equation(

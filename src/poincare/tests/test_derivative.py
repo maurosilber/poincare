@@ -101,7 +101,7 @@ def test_override_collision():
         x: Variable = initial(default=0)
         vx = x.derive(initial=2)
 
-    with raises(ValueError, match="already"):
+    with raises(ValueError, match="colliding"):
 
         class CollidingModel1(System):
             x = Variable(initial=0)
@@ -109,13 +109,11 @@ def test_override_collision():
             p2 = Particle2(x=x)
             vx = x.derive(initial=0)
 
-    with raises(ValueError, match="already"):
-
-        class CollidionModel2(System):
-            x = Variable(initial=0)
-            p1 = Particle1(x=x)
-            vx = x.derive(initial=0)
-            p2 = Particle2(x=x)
+    class CollidionModel2(System):
+        x = Variable(initial=0)
+        p1 = Particle1(x=x)
+        vx = x.derive(initial=0)
+        p2 = Particle2(x=x)
 
     class Model(System):
         x = Variable(initial=0)
