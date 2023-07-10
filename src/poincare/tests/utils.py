@@ -1,6 +1,6 @@
 from typing import TypeVar
 
-from ..types import Derivative, Variable
+from .. import Derivative, Variable
 
 T = TypeVar("T", Variable, Derivative)
 
