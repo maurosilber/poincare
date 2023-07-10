@@ -65,10 +65,9 @@ def _assign_equation(
             f"already assigned an initial to a higher order {max_order_initial}"
         )
     else:
-        equation = Equation(Derivative(variable, order=order), expression)
         variable.equation_order = order
-        variable.equations.append(equation)
-        return equation
+        variable.equations.append(expression)
+        return Equation(Derivative(variable, order=order), expression)
 
 
 class Variable(Scalar):
@@ -76,7 +75,7 @@ class Variable(Scalar):
     parent: System
     derivatives: ChainMap[int, Initial]
     equation_order: int | None = None
-    equations: list[Scalar]
+    equations: list[Initial | Variable]
 
     def __str__(self) -> str:
         return str(self.parent) + "." + self.name
@@ -151,11 +150,11 @@ class Variable(Scalar):
                 )
 
             if (order := self.equation_order) is not None:
-                for equation in self.equations:
+                for expression in self.equations:
                     _assign_equation(
                         variable=value,
                         order=order,
-                        expression=equation.rhs,
+                        expression=expression,
                     )
             obj.__dict__[self.name] = value
         elif isinstance(value, Initial):
@@ -187,7 +186,6 @@ class Variable(Scalar):
 
 
 class Derivative(Variable):
-
     def __init__(
         self,
         variable: Variable,
@@ -416,7 +414,9 @@ class System:
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
 
-    def yield_variables(self, recursive: bool=True) -> Generator[Variable, None, None]:
+    def yield_variables(
+        self, recursive: bool = True
+    ) -> Generator[Variable, None, None]:
         for k in self.__class__.__dict__.keys():
             v = getattr(self, k)
             if isinstance(v, System):
