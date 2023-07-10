@@ -60,6 +60,7 @@ def _assign_equation(
 
 class Variable(Scalar):
     name: str
+    parent: System
     derivatives: dict[int, Initial]
     equation_order: int | None = None
     equations: list[Equation]
@@ -111,8 +112,9 @@ class Variable(Scalar):
             case (initial, assign):
                 raise ValueError("cannot assign initial and equation.")
 
-    def __set_name__(self, obj, name: str):
+    def __set_name__(self, cls, name: str):
         object.__setattr__(self, "name", name)
+        object.__setattr__(self, "parent", cls)
 
     def __set__(self, obj, value: Variable | Initial):
         """Allows to override the annotation in System.__init__."""
@@ -146,6 +148,22 @@ class Variable(Scalar):
                 )
 
         obj.__dict__[self.name] = value
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+
+        attr = obj.__dict__.get(self.name, self)
+        if attr.parent is not obj:
+            attr = attr.copy(parent=obj)
+            obj.__dict__[self.name] = attr
+        return attr
+
+    def copy(self, parent: System):
+        copy = self.__class__.__new__(self.__class__, initial=self.initial)
+        copy.__dict__ = self.__dict__.copy()
+        copy.parent = parent
+        return copy
 
     def __eq__(self, other: Self) -> bool:
         return (self.name == other.name) and (self.initial == other.initial)
@@ -285,13 +303,16 @@ def initial(*, default: Initial) -> Variable:
     ),
 )
 class System:
+    name: str | None = None
+    parent: System | None = None
+    _kwargs: dict
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
     _required: ClassVar[set[str]]
 
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)
 
-        for k in ("_annotations", "_required"):
+        for k in ("_annotations", "_required", "_kwargs", "name", "parent"):
             del cls._annotations[k]
 
         # Check mismatched types
@@ -311,7 +332,12 @@ class System:
                 )
             )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        _kwargs=None,
+        **kwargs,
+    ):
         if len(args) > 0:
             raise TypeError("positional parameters are not allowed.")
 
@@ -323,8 +349,41 @@ class System:
         if len(missing) > 0:
             raise TypeError("missing parameters:", missing)
 
+        self._kwargs = kwargs
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def __set_name__(self, cls, name: str):
+        self.name = name
+        self.parent = cls
+
+    def __set__(self, obj: System, value: System):
+        if not isinstance(value, self.__class__):
+            raise TypeError
+
+        if self.name is None:
+            raise RuntimeError
+        obj.__dict__[self.name] = value
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+
+        if self.name is None:
+            raise RuntimeError
+
+        try:
+            return obj.__dict__[self.name]
+        except KeyError:
+            kwargs = {}
+            for k, v in self._kwargs.items():
+                if getattr(v, "parent", None) is not None:
+                    v = getattr(obj, v.name)
+                kwargs[k] = v
+            copy = self.__class__(**kwargs)
+            copy.__set_name__(obj, self.name)
+            obj.__dict__[self.name] = copy
+            return copy
 
     def __eq__(self, other: Self):
         if other.__class__ is not self.__class__:
