@@ -4,7 +4,7 @@ from collections import ChainMap
 from typing import ClassVar, Generator
 from typing import get_type_hints as get_annotations
 
-from symbolite import Scalar
+from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform, overload
 
 
@@ -15,6 +15,17 @@ class Constant(Scalar):
 
 Number = int | float | complex
 Initial = Number | Constant
+
+
+class ClsMapper(dict):
+    def __init__(self, obj, cls):
+        self.obj = obj
+        self.cls = cls
+
+    def get(self, item, default):
+        if hasattr(item, "parent") and item.parent is self.cls:
+            return getattr(self.obj, item.name)
+        return default
 
 
 def _create_derivative(
@@ -141,6 +152,7 @@ class Variable(Scalar):
         # The type hint shows:
         # >>> Model(x: Variable | Initial) -> None
         if isinstance(value, Variable):
+            obj.__dict__[self.name] = value
             for order, initial in self.derivatives.items():
                 _create_derivative(
                     variable=value,
@@ -150,16 +162,23 @@ class Variable(Scalar):
                 )
 
             if (order := self.equation_order) is not None:
+                mapper = ClsMapper(obj, self.parent)
                 for expression in self.equations:
+                    if isinstance(expression, Symbol):
+                        expression = expression.subs(mapper)
                     _assign_equation(
                         variable=value,
                         order=order,
                         expression=expression,
                     )
-            obj.__dict__[self.name] = value
         elif isinstance(value, Initial):
-            variable = getattr(obj, self.name)
+            variable: Variable = getattr(obj, self.name)
             variable.derivatives[0] = value
+            mapper = ClsMapper(obj, self.parent)
+            variable.equations = [
+                eq.subs(mapper) if isinstance(eq, Symbol) else eq
+                for eq in variable.equations
+            ]
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
@@ -180,6 +199,9 @@ class Variable(Scalar):
 
     def __eq__(self, other: Self) -> bool:
         return (self.name == other.name) and (self.initial == other.initial)
+
+    def __hash__(self):
+        return hash(self.name)
 
     def __repr__(self):
         return f"{self.name}={self.initial}"
@@ -283,9 +305,35 @@ class Derivative(Variable):
 
 
 class Equation:
+    name: str
+    parent: System
+
     def __init__(self, lhs: Derivative, rhs: Initial | Variable):
         self.lhs = lhs
         self.rhs = rhs
+
+    def __set_name__(self, cls, name: str):
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "parent", cls)
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+
+        try:
+            return obj.__dict__[self.name]
+        except KeyError:
+            equation = Equation(
+                lhs=Derivative(
+                    getattr(obj, self.lhs.variable.name),
+                    order=self.lhs.order,
+                ),
+                rhs=self.rhs.subs(ClsMapper(obj, cls))
+                if isinstance(self.rhs, Symbol)
+                else self.rhs,
+            )
+            obj.__dict__[self.name] = equation
+            return equation
 
 
 @overload
