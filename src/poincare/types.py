@@ -335,7 +335,6 @@ class System:
     def __init__(
         self,
         *args,
-        _kwargs=None,
         **kwargs,
     ):
         if len(args) > 0:
