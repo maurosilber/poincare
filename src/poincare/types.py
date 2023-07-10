@@ -392,6 +392,5 @@ class System:
 
     def __repr__(self):
         name = self.__class__.__name__
-        components = [getattr(self, k) for k in self._annotations]
-        components = ", ".join(map(repr, components))
-        return f"{name}({components})"
+        kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
+        return f"{name}({kwargs})"
