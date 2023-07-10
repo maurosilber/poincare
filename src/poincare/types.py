@@ -365,7 +365,7 @@ class System:
             raise RuntimeError
         obj.__dict__[self.name] = value
 
-    def __get__(self, obj, cls):
+    def __get__(self, obj, cls) -> Self:
         if obj is None:
             return self
 
