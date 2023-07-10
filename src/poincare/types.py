@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import ChainMap
 from typing import ClassVar
 from typing import get_type_hints as get_annotations
 
@@ -28,7 +29,7 @@ def _create_derivative(
         raise ValueError(
             f"already assigned an equation to order {variable.equation_order}"
         )
-    elif order in variable.derivatives:
+    elif order in variable.derivatives.maps[0]:
         value = variable.derivatives[order]
         raise ValueError(f"already assigned an initial value: {value}")
     else:
@@ -61,12 +62,12 @@ def _assign_equation(
 class Variable(Scalar):
     name: str
     parent: System
-    derivatives: dict[int, Initial]
+    derivatives: ChainMap[int, Initial]
     equation_order: int | None = None
     equations: list[Equation]
 
     def __init__(self, *, initial: Initial):
-        self.derivatives = {0: initial}
+        self.derivatives = ChainMap({0: initial}, {})
         self.equations = []
 
     @property
@@ -153,17 +154,16 @@ class Variable(Scalar):
         if obj is None:
             return self
 
-        attr = obj.__dict__.get(self.name, self)
-        if attr.parent is not obj:
-            attr = attr.copy(parent=obj)
-            obj.__dict__[self.name] = attr
-        return attr
-
-    def copy(self, parent: System):
-        copy = self.__class__.__new__(self.__class__, initial=self.initial)
-        copy.__dict__ = self.__dict__.copy()
-        copy.parent = parent
-        return copy
+        try:
+            return obj.__dict__[self.name]
+        except KeyError:
+            cls = self.__class__
+            copy = cls.__new__(cls)
+            copy.__dict__ = self.__dict__
+            copy.derivatives = ChainMap({}, self.derivatives)
+            copy.parent = obj
+            obj.__dict__[self.name] = copy
+            return copy
 
     def __eq__(self, other: Self) -> bool:
         return (self.name == other.name) and (self.initial == other.initial)
