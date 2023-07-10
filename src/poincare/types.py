@@ -184,8 +184,6 @@ class Variable(Scalar):
 
 
 class Derivative(Variable):
-    name: str
-
     def __init__(
         self,
         variable: Variable,
@@ -194,9 +192,6 @@ class Derivative(Variable):
     ):
         self.variable = variable
         self.order = order
-
-    def __set_name__(self, obj, name: str):
-        object.__setattr__(self, "name", name)
 
     def __get__(self, obj, cls):
         if obj is None:
