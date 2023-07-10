@@ -370,7 +370,7 @@ class System:
         except KeyError:
             kwargs = {}
             for k, v in self._kwargs.items():
-                if getattr(v, "parent", None) is not None:
+                if getattr(v, "parent", None) is cls:
                     v = getattr(obj, v.name)
                 kwargs[k] = v
             copy = self.__class__(**kwargs)
