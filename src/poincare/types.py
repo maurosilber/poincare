@@ -208,7 +208,7 @@ class Derivative(Variable):
             raise TypeError(f"expected an initial value for {self.name}")
 
         variable = getattr(obj, self.variable.name)
-        variable.derivatives[self.order] = value
+        _create_derivative(variable=variable, order=self.order, initial=value)
 
     @property
     def initial(self):

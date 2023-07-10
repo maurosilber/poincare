@@ -101,29 +101,29 @@ def test_override_collision():
         x: Variable = initial(default=0)
         vx = x.derive(initial=2)
 
-    class Model(System):
-        x = Variable(initial=0)
-        vx = x.derive(initial=0)
-        p1 = Particle1(x=x)
-        p2 = Particle2(x=x)
+    with raises(ValueError, match="already"):
 
-    assert Model.vx.initial == 0
-
-    class Model(System):
-        x = Variable(initial=0)
-        p1 = Particle1(x=x)
-        vx = x.derive(initial=0)
-        p2 = Particle2(x=x)
-
-    assert Model.vx.initial == 0
-
-    with raises(ValueError, match="override"):
-
-        class Model(System):
+        class CollidingModel1(System):
             x = Variable(initial=0)
             p1 = Particle1(x=x)
             p2 = Particle2(x=x)
             vx = x.derive(initial=0)
+
+    with raises(ValueError, match="already"):
+
+        class CollidionModel2(System):
+            x = Variable(initial=0)
+            p1 = Particle1(x=x)
+            vx = x.derive(initial=0)
+            p2 = Particle2(x=x)
+
+    class Model(System):
+        x = Variable(initial=0)
+        vx = x.derive(initial=0)
+        p1 = Particle1(x=x)
+        p2 = Particle2(x=x)
+
+    assert Model.vx.initial == 0
 
 
 def test_implicit_assignment():
