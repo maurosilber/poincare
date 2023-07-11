@@ -17,15 +17,24 @@ Number = int | float | complex
 Initial = Number | Constant
 
 
+class Owned:
+    name: str
+    parent: System | type[System] | None = None
+
+    def __set_name__(self, cls, name: str):
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "parent", cls)
+
+
 class ClsMapper(dict):
-    def __init__(self, obj, cls):
+    def __init__(self, obj: System, cls: type[System]):
         self.obj = obj
         self.cls = cls
 
     def get(self, item, default):
-        if hasattr(item, "parent") and item.parent is self.cls:
+        if isinstance(item, Owned) and item.parent is self.cls:
             return getattr(self.obj, item.name)
-        return default
+        return item
 
 
 def _create_derivative(
@@ -82,9 +91,7 @@ def _assign_equation(
         return Equation(Derivative(variable, order=order), expression)
 
 
-class Variable(Scalar):
-    name: str
-    parent: System
+class Variable(Scalar, Owned):
     derivatives: ChainMap[int, Initial]
     equation_order: int | None = None
     equations: list[Initial | Variable]
@@ -139,10 +146,6 @@ class Variable(Scalar):
                 )
             case (initial, assign):
                 raise ValueError("cannot assign initial and equation.")
-
-    def __set_name__(self, cls, name: str):
-        object.__setattr__(self, "name", name)
-        object.__setattr__(self, "parent", cls)
 
     def __set__(self, obj, value: Variable | Initial):
         """Allows to override the annotation in System.__init__."""
@@ -305,17 +308,10 @@ class Derivative(Variable):
         return f"D({self.variable.name})={self.initial}"
 
 
-class Equation:
-    name: str
-    parent: System
-
+class Equation(Owned):
     def __init__(self, lhs: Derivative, rhs: Initial | Variable):
         self.lhs = lhs
         self.rhs = rhs
-
-    def __set_name__(self, cls, name: str):
-        object.__setattr__(self, "name", name)
-        object.__setattr__(self, "parent", cls)
 
     def __get__(self, obj, cls):
         if obj is None:
@@ -365,9 +361,7 @@ def initial(*, default: Initial) -> Variable:
         assign,
     ),
 )
-class System:
-    name: str | None = None
-    parent: System | None = None
+class System(Owned):
     _kwargs: dict
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
     _required: ClassVar[set[str]]
@@ -420,10 +414,6 @@ class System:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def __set_name__(self, cls, name: str):
-        self.name = name
-        self.parent = cls
-
     def __set__(self, obj: System, value: System):
         if not isinstance(value, self.__class__):
             raise TypeError
@@ -444,7 +434,7 @@ class System:
         except KeyError:
             kwargs = {}
             for k, v in self._kwargs.items():
-                if getattr(v, "parent", None) is cls:
+                if isinstance(v, Owned) and v.parent is cls:
                     v = getattr(obj, v.name)
                 kwargs[k] = v
             copy = self.__class__(**kwargs)
