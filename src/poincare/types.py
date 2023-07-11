@@ -54,7 +54,8 @@ def _create_derivative(
     else:
         try:
             value = variable.derivatives.maps[1][order]
-            raise ValueError(f"colliding initial value: {value}")
+            if value != initial:
+                raise ValueError(f"colliding initial value: {value}")
         except KeyError:
             variable.derivatives.maps[1][order] = initial
 
