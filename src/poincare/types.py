@@ -37,6 +37,33 @@ class ClsMapper(dict):
         return item
 
 
+def derive(
+    *,
+    variable: Variable,
+    order: int,
+    initial=None,
+    assign=None,
+):
+    match (initial, assign):
+        case (None, None):
+            return Derivative(variable=variable, order=order)
+        case (initial, None):
+            return _create_derivative(
+                variable=variable,
+                order=order,
+                initial=initial,  # type: ignore
+                map=0,
+            )
+        case (None, assign):
+            return _assign_equation(
+                variable=variable,
+                order=order,
+                expression=assign,
+            )
+        case (initial, assign):
+            raise ValueError("cannot assign initial and equation.")
+
+
 def _create_derivative(
     *,
     variable: Variable,
@@ -108,12 +135,7 @@ class Variable(Scalar, Owned):
         return self.derivatives[0]
 
     @overload
-    def derive(
-        self,
-        *,
-        initial: None = None,
-        assign: Initial | Variable,
-    ) -> Equation:
+    def derive(self, *, initial: None = None, assign: Initial | Variable) -> Equation:
         ...
 
     @overload
@@ -126,26 +148,12 @@ class Variable(Scalar, Owned):
         ...
 
     def derive(self, *, initial=None, assign=None):
-        variable = self
-        order = 1
-        match (initial, assign):
-            case (None, None):
-                return Derivative(variable=variable, order=order)
-            case (initial, None):
-                return _create_derivative(
-                    variable=variable,
-                    order=order,
-                    initial=initial,  # type: ignore
-                    map=0,
-                )
-            case (None, assign):
-                return _assign_equation(
-                    variable=variable,
-                    order=order,
-                    expression=assign,
-                )
-            case (initial, assign):
-                raise ValueError("cannot assign initial and equation.")
+        return derive(
+            variable=self,
+            order=1,
+            initial=initial,
+            assign=assign,
+        )
 
     def __set__(self, obj, value: Variable | Initial):
         """Allows to override the annotation in System.__init__."""
@@ -277,26 +285,12 @@ class Derivative(Variable):
         initial=None,
         assign=None,
     ):
-        variable = self.variable
-        order = self.order + 1
-        match (initial, assign):
-            case None, None:
-                return Derivative(variable=variable, order=order)
-            case (initial, None):
-                return _create_derivative(
-                    variable=variable,
-                    order=order,
-                    initial=initial,  # type: ignore
-                    map=0,
-                )
-            case (None, assign):
-                return _assign_equation(
-                    variable=variable,
-                    order=order,
-                    expression=assign,
-                )
-            case initial, assign:
-                raise ValueError("cannot assign initial and equation.")
+        return derive(
+            variable=self.variable,
+            order=self.order + 1,
+            initial=initial,
+            assign=assign,
+        )
 
     def __eq__(self, other: Self) -> bool:
         if other.__class__ is not self.__class__:
