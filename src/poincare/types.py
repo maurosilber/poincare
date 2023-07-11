@@ -358,7 +358,6 @@ def initial(*, default: Initial) -> Variable:
 class System(Owned):
     _kwargs: dict
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
-    _required: ClassVar[set[str]]
 
     def __str__(self) -> str:
         if self.parent is None:
@@ -368,18 +367,15 @@ class System(Owned):
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)
 
-        for k in ("_annotations", "_required", "_kwargs", "name", "parent"):
+        for k in ("_annotations", "_kwargs", "name", "parent"):
             del cls._annotations[k]
 
         # Check mismatched types
         mismatched_types: list[tuple[str, type, type]] = []
-        cls._required = set()
         for k, annotation in cls._annotations.items():
             v = getattr(cls, k)
             if not isinstance(v, annotation):
                 mismatched_types.append((k, annotation, type(v)))
-            if isinstance(v, (Variable, Derivative)) and v.initial is None:
-                cls._required.add(k)
 
         if len(mismatched_types) > 0:
             raise TypeError(
@@ -388,21 +384,13 @@ class System(Owned):
                 )
             )
 
-    def __init__(
-        self,
-        *args,
-        **kwargs,
-    ):
+    def __init__(self, *args, **kwargs):
         if len(args) > 0:
             raise TypeError("positional parameters are not allowed.")
 
         unexpected = kwargs.keys() - self._annotations.keys()
         if len(unexpected) > 0:
             raise TypeError("unexpected arguments:", unexpected)
-
-        missing = self._required - kwargs.keys()
-        if len(missing) > 0:
-            raise TypeError("missing parameters:", missing)
 
         self._kwargs = kwargs
         for k, v in kwargs.items():
@@ -437,6 +425,12 @@ class System(Owned):
             return copy
 
     def __eq__(self, other: Self):
+        """Check equality between Systems.
+
+        Two Systems are equal if they:
+        - are instances of the same class
+        - have been instanced with the same arguments
+        """
         if other.__class__ is not self.__class__:
             return NotImplemented
 

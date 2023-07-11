@@ -12,19 +12,14 @@ def test_empty_system():
     Model()
 
 
-def test_required_variable():
-    """The variable is required to instantiate the system.
-
-    Variables are keyword-only.
-    """
+def test_error_on_positional():
+    """System parameters are keyword-only."""
 
     class Model(System):
         x: Variable = initial(default=0)
 
     with raises(TypeError, match="positional"):
         Model(1)  # type: ignore
-
-    Model(x=1)
 
 
 def test_default_variable():
