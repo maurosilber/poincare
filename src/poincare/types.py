@@ -194,7 +194,7 @@ class Variable(Scalar, Owned):
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
-    def __get__(self, obj, cls):
+    def __get__(self, obj, cls) -> Self:
         if obj is None:
             return self
 
@@ -229,7 +229,7 @@ class Derivative(Variable):
         self.variable = variable
         self.order = order
 
-    def __get__(self, obj, cls):
+    def __get__(self, obj, cls) -> Self:
         if obj is None:
             return self
 
@@ -307,7 +307,7 @@ class Equation(Owned):
         self.lhs = lhs
         self.rhs = rhs
 
-    def __get__(self, obj, cls):
+    def __get__(self, obj, cls) -> Self:
         if obj is None:
             return self
 
@@ -396,7 +396,7 @@ class System(Owned):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def __set__(self, obj: System, value: System):
+    def __set__(self, obj, value):
         if not isinstance(value, self.__class__):
             raise TypeError
 
