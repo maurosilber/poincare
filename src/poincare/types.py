@@ -164,6 +164,9 @@ class Variable(Scalar, Owned):
         # The type hint shows:
         # >>> Model(x: Variable | Initial) -> None
         if isinstance(value, Variable):
+            # Replace descriptor by adding it to obj.__dict__
+            # Update derivatives initials
+            # Update equations
             obj.__dict__[self.name] = value
             for order, initial in self.derivatives.items():
                 _create_derivative(
@@ -184,13 +187,10 @@ class Variable(Scalar, Owned):
                         expression=expression,
                     )
         elif isinstance(value, Initial):
+            # Get or create instance with getattr
+            # Update initial value
             variable: Variable = getattr(obj, self.name)
             variable.derivatives[0] = value
-            mapper = ClsMapper(obj, self.parent)
-            variable.equations = [
-                eq.subs(mapper) if isinstance(eq, Symbol) else eq
-                for eq in variable.equations
-            ]
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
@@ -201,13 +201,23 @@ class Variable(Scalar, Owned):
         try:
             return obj.__dict__[self.name]
         except KeyError:
+            # Create new instance by copying descriptor.
             cls = self.__class__
             copy = cls.__new__(cls)
-            copy.__dict__ = self.__dict__.copy()
-            copy.derivatives = ChainMap({}, self.derivatives)
-            copy.derivatives[0] = self.initial
-            copy.parent = obj
+            # Set in instance.__dict__ for future access
+            # Important: this must be done before updating the copy's equations
             obj.__dict__[self.name] = copy
+            # Set name and parent
+            copy.__set_name__(obj, self.name)
+            # Set descriptor derivatives as default derivatives
+            copy.derivatives = ChainMap({0: self.initial}, self.derivatives)
+            # Update equations
+            mapper = ClsMapper(obj, self.parent)
+            copy.equations = [
+                eq.subs(mapper) if isinstance(eq, Symbol) else eq
+                for eq in self.equations
+            ]
+            copy.equation_order = self.equation_order
             return copy
 
     def __eq__(self, other: Self) -> bool:
