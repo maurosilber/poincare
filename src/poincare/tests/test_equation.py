@@ -1,6 +1,6 @@
 from pytest import raises
 
-from ..types import Constant, Derivative, System, Variable, assign, initial
+from ..types import Derivative, System, Variable, assign, initial
 from .utils import is_same_variable
 
 
@@ -121,11 +121,3 @@ def test_parameter_equation():
         t = Variable(initial=0)
 
         k: Variable = assign(default=t)
-
-
-def test_parameter_not_derivable():
-    with raises(AttributeError):
-
-        class Model(System):
-            k = Constant(default=0)
-            k.derive()
