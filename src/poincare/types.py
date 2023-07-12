@@ -247,10 +247,9 @@ class Derivative(Variable):
         if obj is None:
             return self
 
-        return Derivative(
-            variable=getattr(obj, self.variable.name),
-            order=self.order,
-        )
+        # Get or create the instance variable
+        variable: Variable = getattr(obj, self.variable.name)
+        return Derivative(variable=variable, order=self.order)
 
     def __set__(self, obj, value: Initial):
         """Allows to override the annotation in System.__init__."""
@@ -263,7 +262,8 @@ class Derivative(Variable):
         if not isinstance(value, Initial):
             raise TypeError(f"expected an initial value for {self.name}")
 
-        variable = getattr(obj, self.variable.name)
+        # Get or create the instance variable
+        variable: Variable = getattr(obj, self.variable.name)
         _create_derivative(
             variable=variable,
             order=self.order,
@@ -335,6 +335,7 @@ class Equation(Owned):
         try:
             return obj.__dict__[self.name]
         except KeyError:
+            # Recreate the equation by replacing all variables with instance variables.
             equation = Equation(
                 lhs=Derivative(
                     getattr(obj, self.lhs.variable.name),
