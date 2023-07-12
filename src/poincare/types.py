@@ -124,7 +124,7 @@ class Variable(Scalar, Owned):
     equations: list[Initial | Variable]
 
     def __str__(self) -> str:
-        return str(self.parent) + "." + self.name
+        return f"{self.parent}.{self.name}"
 
     def __init__(self, *, initial: Initial):
         self.derivatives = ChainMap({0: initial}, {})
@@ -229,6 +229,9 @@ class Derivative(Variable):
     ):
         self.variable = variable
         self.order = order
+
+    def __str__(self):
+        return f"{self.variable}.{self.order}"
 
     def __get__(self, obj, cls) -> Self:
         if obj is None:
@@ -369,8 +372,8 @@ class System(Owned):
 
     def __str__(self) -> str:
         if self.parent is None:
-            return getattr(self, "name") or "Root"
-        return str(self.parent) + "." + self.name
+            return getattr(self, "name", "Root")
+        return f"{self.parent}.{self.name}"
 
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)
