@@ -292,6 +292,13 @@ class Derivative(Variable):
             assign=assign,
         )
 
+    def __lshift__(self, other) -> Equation:
+        return _assign_equation(
+            variable=self.variable,
+            order=self.order,
+            expression=other,
+        )
+
     def __eq__(self, other: Self) -> bool:
         if other.__class__ is not self.__class__:
             return NotImplemented
