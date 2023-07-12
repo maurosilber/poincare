@@ -436,11 +436,15 @@ class System(Owned):
         try:
             return obj.__dict__[self.name]
         except KeyError:
-            kwargs = {}
-            for k, v in self._kwargs.items():
-                if isinstance(v, Owned) and v.parent is cls:
-                    v = getattr(obj, v.name)
-                kwargs[k] = v
+            # Create a new instance by replacing previous arguments,
+            # which were saved in self._kwargs,
+            # with the ones from the corresponding instance
+            kwargs = {
+                k: getattr(obj, v.name)
+                if isinstance(v, Owned) and v.parent is cls
+                else v
+                for k, v in self._kwargs.items()
+            }
             copy = self.__class__(**kwargs)
             copy.__set_name__(obj, self.name)
             obj.__dict__[self.name] = copy
