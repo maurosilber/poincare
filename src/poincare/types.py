@@ -205,6 +205,7 @@ class Variable(Scalar, Owned):
             copy = cls.__new__(cls)
             copy.__dict__ = self.__dict__.copy()
             copy.derivatives = ChainMap({}, self.derivatives)
+            copy.derivatives[0] = self.initial
             copy.parent = obj
             obj.__dict__[self.name] = copy
             return copy
