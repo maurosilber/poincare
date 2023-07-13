@@ -14,6 +14,7 @@ class Reaction(Owned):
     reactants: Sequence[Species]
     products: Sequence[Species]
     rate_law: Callable
+    equations: list[Equation]
 
     def __init__(
         self,
@@ -25,6 +26,7 @@ class Reaction(Owned):
         self.reactants = [Species.from_symbol(r) for r in reactants]
         self.products = [Species.from_symbol(p) for p in products]
         self.rate_law = rate_law
+        self.equations = list(self.yield_equations())
 
     def __get__(self, obj, cls):
         if obj is None:
@@ -101,6 +103,7 @@ class MassAction(Reaction):
         self.reactants = [Species.from_symbol(r) for r in reactants]
         self.products = [Species.from_symbol(p) for p in products]
         self.rate = rate
+        self.equations = list(self.yield_equations())
 
     def rate_law(self, *reactants: Species):
         rate = self.rate
