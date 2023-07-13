@@ -1,4 +1,4 @@
-from . import MassAction, Reaction, Species, System, Variable, initial
+from . import Constant, MassAction, Reaction, Species, System, Variable, assign, initial
 
 
 def test_one_reactant():
@@ -91,7 +91,22 @@ def test_same_reactant_and_product_with_mass_action():
     assert len(m.eq.equations) == 1
     assert m.eq.equations[0].lhs == m.x.derive()
     assert m.eq.equations[0].rhs == 1.0 * (42 * m.x**2)
-    equations = list(m.eq.yield_equations())
-    assert len(equations) == 1
-    assert equations[0].lhs == m.x.derive()
-    assert equations[0].rhs == 1.0 * (42 * m.x**2)
+
+
+def test_mass_action_with_rate_as_parameter():
+    class Model(System):
+        x: Variable = initial(default=0)
+        rate: Constant = assign(default=42)
+        eq = MassAction(
+            reactants=[2 * x],
+            products=[3 * x],
+            rate=rate,
+        )
+
+    m = Model()
+    assert m.eq.reactants == [Species(m.x, 2)]
+    assert m.eq.products == [Species(m.x, 3)]
+
+    assert len(m.eq.equations) == 1
+    assert m.eq.equations[0].lhs == m.x.derive()
+    assert m.eq.equations[0].rhs == 1.0 * (m.rate * m.x**2)
