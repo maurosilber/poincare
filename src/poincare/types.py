@@ -8,15 +8,6 @@ from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform, overload
 
 
-class Constant(Scalar):
-    def __init__(self, *, default: Initial):
-        self.default = default
-
-
-Number = int | float | complex
-Initial = Number | Constant
-
-
 class Owned:
     name: str
     parent: System | type[System] | None = None
@@ -24,6 +15,15 @@ class Owned:
     def __set_name__(self, cls, name: str):
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "parent", cls)
+
+
+class Constant(Scalar, Owned):
+    def __init__(self, *, default: Initial):
+        self.default = default
+
+
+Number = int | float | complex
+Initial = Number | Constant
 
 
 class ClsMapper(dict):
@@ -320,7 +320,10 @@ class Derivative(Variable):
         return self.order == other.order and self.variable == other.variable
 
     def __repr__(self):
-        return f"D({self.variable.name})={self.initial}"
+        try:
+            return f"D({self.variable.name})={self.initial}"
+        except KeyError:
+            return f"D({self.variable.name})"
 
 
 class Equation(Owned):
