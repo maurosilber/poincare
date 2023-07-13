@@ -74,3 +74,31 @@ def test_single_composition():
 
     assert Model(x=value).x.initial == value
     assert Model(x=value).p.x.initial == value
+
+
+def test_multilevel_composition():
+    defaults = [1, 2, 3]
+
+    class First(System):
+        x0: Variable = initial(default=defaults[0])
+
+    class Second(System):
+        x1: Variable = initial(default=defaults[1])
+        inner = First(x0=x1)
+
+    class Third(System):
+        x2: Variable = initial(default=defaults[2])
+        inner = Second(x1=x2)
+
+    assert Third.x2.initial == defaults[2]
+    assert Third.inner.x1.initial == defaults[2]
+    assert Third.inner.inner.x0.initial == defaults[2]
+
+    assert Third().x2.initial == defaults[2]
+    assert Third().inner.x1.initial == defaults[2]
+    assert Third().inner.inner.x0.initial == defaults[2]
+
+    value = 0
+    assert Third(x2=value).x2.initial == value
+    assert Third(x2=value).inner.x1.initial == value
+    assert Third(x2=value).inner.inner.x0.initial == value
