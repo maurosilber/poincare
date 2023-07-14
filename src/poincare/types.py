@@ -32,6 +32,15 @@ class Owned:
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "parent", cls)
 
+    def __set__(self, obj: System, value: Self):
+        if not isinstance(value, self.__class__):
+            raise TypeError
+
+        if value.parent is None and not hasattr(value, "name"):
+            value.__set_name__(obj, self.name)
+
+        obj.__dict__[self.name] = value
+
     def __str__(self) -> str:
         return f"{self.parent}.{self.name}"
 
@@ -445,14 +454,6 @@ class System(Owned, metaclass=EagerNamer):
         self._kwargs = kwargs
         for k, v in kwargs.items():
             setattr(self, k, v)
-
-    def __set__(self, obj, value):
-        if not isinstance(value, self.__class__):
-            raise TypeError
-
-        if self.name is None:
-            raise RuntimeError
-        obj.__dict__[self.name] = value
 
     def __get__(self, obj, cls) -> Self:
         if obj is None:
