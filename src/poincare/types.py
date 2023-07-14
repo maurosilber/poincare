@@ -61,6 +61,36 @@ class Constant(Scalar, Owned):
     def __init__(self, *, default: Initial):
         self.default = default
 
+    def __eq__(self, other: Self):
+        if other.__class__ is not self.__class__:
+            return NotImplemented
+
+        return self.default == other.default and super().__eq__(other)
+
+    def __set__(self, obj, value: Initial | Constant):
+        if isinstance(value, Constant):
+            constant = value
+        elif isinstance(value, Initial):
+            # Get or create instance with getattr
+            constant: Constant = getattr(obj, self.name)
+            constant.default = value
+        else:
+            raise TypeError(f"unexpected type {type(value)} for {self.name}")
+
+        # Set name, parent and add to obj.__dict__
+        super().__set__(obj, constant)
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+
+        try:
+            return obj._get(self.name)
+        except KeyError:
+            value = Constant(default=self.default)
+            super().__set__(obj, value)
+            return value
+
 
 Number = int | float | complex
 Initial = Number | Constant

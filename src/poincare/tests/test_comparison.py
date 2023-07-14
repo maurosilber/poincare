@@ -3,7 +3,7 @@
 It allows hashing and using components in dictionaries.
 """
 
-from ..types import System, Variable, initial
+from ..types import Constant, System, Variable, assign, initial
 
 
 def test_initial_value():
@@ -11,6 +11,14 @@ def test_initial_value():
         x: Variable = initial(default=0)
 
     assert Model() == Model(x=0) == Model(x=Variable(initial=0))
+    assert Model(x=0) != Model(x=1)
+
+
+def test_constant():
+    class Model(System):
+        x: Constant = assign(default=0)
+
+    assert Model() == Model(x=0) == Model(x=Constant(default=0))
     assert Model(x=0) != Model(x=1)
 
 
