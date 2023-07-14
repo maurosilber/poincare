@@ -16,6 +16,21 @@ class Owned:
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "parent", cls)
 
+    def __str__(self) -> str:
+        return f"{self.parent}.{self.name}"
+
+    def __repr__(self):
+        return str(self)
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    def __eq__(self, other):
+        if other.__class__ is not self.__class__:
+            return False
+
+        return str(self) == str(other)
+
 
 class Constant(Scalar, Owned):
     def __init__(self, *, default: Initial):
@@ -118,13 +133,10 @@ def _assign_equation(
         return Equation(Derivative(variable, order=order), expression)
 
 
-class Variable(Scalar, Owned):
+class Variable(Owned, Scalar):
     derivatives: ChainMap[int, Initial]
     equation_order: int | None = None
     equations: list[Initial | Variable]
-
-    def __str__(self) -> str:
-        return f"{self.parent}.{self.name}"
 
     def __init__(self, *, initial: Initial):
         self.derivatives = ChainMap({0: initial}, {})
@@ -220,14 +232,14 @@ class Variable(Scalar, Owned):
             copy.equation_order = self.equation_order
             return copy
 
-    def __eq__(self, other: Self) -> bool:
-        return (self.name == other.name) and (self.initial == other.initial)
+    def __hash__(self) -> int:
+        return super().__hash__()
 
-    def __hash__(self):
-        return hash(self.name)
+    def __eq__(self, other):
+        if other.__class__ is not self.__class__:
+            return False
 
-    def __repr__(self):
-        return f"{self.name}={self.initial}"
+        return self.initial == other.initial and super().__eq__(other)
 
 
 class Derivative(Variable):
@@ -320,10 +332,7 @@ class Derivative(Variable):
         return self.order == other.order and self.variable == other.variable
 
     def __repr__(self):
-        try:
-            return f"D({self.variable.name})={self.initial}"
-        except KeyError:
-            return f"D({self.variable.name})"
+        return f"D({self.variable.name})"
 
 
 class Equation(Owned):
