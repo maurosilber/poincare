@@ -25,7 +25,7 @@ class EagerNamer(type):
 
 
 class Owned:
-    name: str
+    name: str = ""
     parent: System | type[System] | None = None
 
     def __set_name__(self, cls, name: str):
@@ -36,7 +36,7 @@ class Owned:
         if not isinstance(value, self.__class__):
             raise TypeError
 
-        if value.parent is None and not hasattr(value, "name"):
+        if value.parent is None and value.name == "":
             value.__set_name__(obj, self.name)
 
         obj.__dict__[self.name] = value
@@ -204,7 +204,7 @@ class Variable(Owned, Scalar):
             # Replace descriptor by adding it to obj.__dict__
             # Update derivatives initials
             # Update equations
-            obj.__dict__[self.name] = value
+            super().__set__(obj, value)
             for order, initial in self.derivatives.items():
                 _create_derivative(
                     variable=value,
@@ -241,11 +241,9 @@ class Variable(Owned, Scalar):
             # Create new instance by copying descriptor.
             cls = self.__class__
             copy = cls.__new__(cls)
-            # Set in instance.__dict__ for future access
+            # Set name and parent and save in instance.__dict__ for future access
             # Important: this must be done before updating the copy's equations
-            obj.__dict__[self.name] = copy
-            # Set name and parent
-            copy.__set_name__(obj, self.name)
+            super().__set__(obj, copy)
             # Set descriptor derivatives as default derivatives
             copy.derivatives = ChainMap({0: self.initial}, self.derivatives)
             # Update equations
