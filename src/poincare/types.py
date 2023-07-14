@@ -8,6 +8,22 @@ from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform, overload
 
 
+class OwnedNamerDict(dict):
+    def __setitem__(self, key, value):
+        if isinstance(value, Owned):
+            value.__set_name__(None, key)
+        return super().__setitem__(key, value)
+
+
+class EagerNamer(type):
+    @classmethod
+    def __prepare__(cls, name, bases):
+        return OwnedNamerDict()
+
+    def __repr__(self):
+        return f"<{self.__name__}>"
+
+
 class Owned:
     name: str
     parent: System | type[System] | None = None
@@ -389,7 +405,7 @@ def initial(*, default: Initial) -> Variable:
         assign,
     ),
 )
-class System(Owned):
+class System(Owned, metaclass=EagerNamer):
     _kwargs: dict
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
 
