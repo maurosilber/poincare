@@ -124,7 +124,7 @@ class MassAction(Reaction):
             products = [
                 v.stoichiometry * getattr(obj, v.variable.name) for v in self.products
             ]
-            rate = self.rate
+            rate = getattr(obj, self.rate.name)
             copy = self.__class__(
                 reactants=reactants,
                 products=products,
