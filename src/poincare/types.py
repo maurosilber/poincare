@@ -52,7 +52,7 @@ class Owned:
 
     def __eq__(self, other):
         if other.__class__ is not self.__class__:
-            return False
+            return NotImplemented
 
         return str(self) == str(other)
 
@@ -260,7 +260,7 @@ class Variable(Owned, Scalar):
 
     def __eq__(self, other):
         if other.__class__ is not self.__class__:
-            return False
+            return NotImplemented
 
         return self.initial == other.initial and super().__eq__(other)
 
