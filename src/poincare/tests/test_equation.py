@@ -72,6 +72,26 @@ def test_repeated_equations():
     assert model.x.equations[1] == model.x
 
 
+def test_two_variable_equations():
+    class Model(System):
+        x: Variable = initial(default=0)
+        y: Variable = initial(default=0)
+        eq_x = x.derive() << x + y
+        eq_y = y.derive() << x + y
+
+    for obj in (
+        Model,
+        Model(x=1),
+        Model(y=1),
+        Model(x=1, y=1),
+        Model(y=1, x=1),
+    ):
+        for name in ["x", "y"]:
+            assert getattr(obj, name).equation_order == 1
+            assert len(getattr(obj, name).equations) == 1
+            assert getattr(obj, name).equations[0] == obj.x + obj.y
+
+
 def test_compose_equations():
     class Constant(System):
         x: Variable = initial(default=0)
