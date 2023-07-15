@@ -538,3 +538,9 @@ class System(Owned, metaclass=EagerNamer):
             elif isinstance(v, System):
                 v: System = getattr(self, k)
                 yield from v.yield_equations()
+            else:
+                v = getattr(self, k)
+                try:
+                    yield from v.yield_equations()
+                except (AttributeError, TypeError):
+                    pass
