@@ -58,7 +58,7 @@ class Owned:
         return str(self) == str(other)
 
 
-class Constant(Scalar, Owned):
+class Constant(Owned, Scalar):
     def __init__(self, *, default: Initial):
         self.default = default
 
@@ -70,16 +70,13 @@ class Constant(Scalar, Owned):
 
     def __set__(self, obj, value: Initial | Constant):
         if isinstance(value, Constant):
-            constant = value
+            super().__set__(obj, value)
         elif isinstance(value, Initial):
             # Get or create instance with getattr
             constant: Constant = getattr(obj, self.name)
             constant.default = value
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
-
-        # Set name, parent and add to obj.__dict__
-        super().__set__(obj, constant)
 
     def __get__(self, obj, cls):
         if obj is None:
