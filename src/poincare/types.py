@@ -86,7 +86,7 @@ class Constant(Scalar, Owned):
             return self
 
         try:
-            return obj._get(self.name)
+            return obj.__dict__[self.name]
         except KeyError:
             value = Constant(default=self.default)
             super().__set__(obj, value)
