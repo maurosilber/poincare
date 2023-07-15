@@ -380,6 +380,9 @@ class Equation(Owned):
         self.lhs = lhs
         self.rhs = rhs
 
+    def __repr__(self):
+        return f"Equation({self.lhs} << {self.rhs})"
+
     def __get__(self, obj, cls) -> Self:
         if obj is None:
             return self
