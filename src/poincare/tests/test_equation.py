@@ -149,6 +149,31 @@ def test_compose_equations_with_derivatives():
             prop = Drag(x=x)
 
 
+def test_compose_multilevel_equations():
+    class Level0(System):
+        x: Variable = initial(default=0)
+        eq = x.derive() << x
+
+    class Level1(System):
+        x: Variable = initial(default=0)
+        eq = Level0(x=x)
+
+    class Level2(System):
+        x: Variable = initial(default=0)
+        eq = Level1(x=x)
+
+    assert Level2.x.equation_order == 1
+    equations = get_equations(Level2)
+    assert len(equations[Level2.x]) == 1
+    assert equations[Level2.x][0].rhs == Level2.x
+
+    level2 = Level2(x=1)
+    assert level2.x.equation_order == 1
+    equations = get_equations(level2)
+    assert len(equations[level2.x]) == 1
+    assert equations[level2.x][0].rhs == level2.x
+
+
 def test_parameter_equation():
     class Model(System):
         t = Variable(initial=0)
