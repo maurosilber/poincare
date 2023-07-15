@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import ClassVar, Generator
+from typing import ClassVar, Iterator
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar, Symbol
@@ -517,9 +517,7 @@ class System(Owned, metaclass=EagerNamer):
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
 
-    def yield_variables(
-        self, recursive: bool = True
-    ) -> Generator[Variable, None, None]:
+    def yield_variables(self, recursive: bool = True) -> Iterator[Variable]:
         for k in self.__class__.__dict__.keys():
             v = getattr(self, k)
             if isinstance(v, System):
@@ -527,3 +525,16 @@ class System(Owned, metaclass=EagerNamer):
                     yield from v.yield_variables(recursive=recursive)
             elif isinstance(v, Variable):
                 yield v
+
+    def yield_equations(self: Self | type[Self]) -> Iterator[Equation]:
+        if isinstance(self, System):
+            cls = self.__class__
+        else:
+            cls = self
+
+        for k, v in cls.__dict__.items():
+            if isinstance(v, Equation):
+                yield getattr(self, k)
+            elif isinstance(v, System):
+                v: System = getattr(self, k)
+                yield from v.yield_equations()

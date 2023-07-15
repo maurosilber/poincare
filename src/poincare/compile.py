@@ -1,25 +1,16 @@
 from collections import defaultdict
-from typing import Iterator
 
 from .types import Equation, System, Variable
 
 
-def yield_equations(system: System | type[System]) -> Iterator[Equation]:
-    if isinstance(system, System):
-        cls = system.__class__
-    else:
-        cls = system
-
-    for k, v in cls.__dict__.items():
-        if isinstance(v, Equation):
-            yield getattr(system, k)
-        elif isinstance(v, System):
-            yield from yield_equations(getattr(system, k))
-
-
 def get_equations(system: System | type[System]) -> dict[Variable, list[Equation]]:
+    if isinstance(system, System):
+        eqs = system.yield_equations()
+    else:
+        eqs = system.yield_equations(system)
+
     equations: dict[Variable, list[Equation]] = defaultdict(list)
-    for eq in yield_equations(system):
+    for eq in eqs:
         equations[eq.lhs.variable].append(eq)
     return equations
 
