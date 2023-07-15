@@ -403,7 +403,7 @@ class Equation(Owned):
                 if isinstance(self.rhs, Symbol)
                 else self.rhs,
             )
-            obj.__dict__[self.name] = equation
+            super().__set__(obj, equation)
             return equation
 
 
@@ -496,8 +496,7 @@ class System(Owned, metaclass=EagerNamer):
                 for k, v in self._kwargs.items()
             }
             copy = self.__class__(**kwargs)
-            copy.__set_name__(obj, self.name)
-            obj.__dict__[self.name] = copy
+            super().__set__(obj, copy)
             return copy
 
     def __eq__(self, other: Self):
