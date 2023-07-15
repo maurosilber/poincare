@@ -62,7 +62,7 @@ class Reaction(Owned):
             yield s.derive() << st * rate
 
 
-@dataclass
+@dataclass(frozen=True)
 class Species:
     variable: Variable
     stoichiometry: float
