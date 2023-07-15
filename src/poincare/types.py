@@ -68,6 +68,9 @@ class Constant(Owned, Scalar):
 
         return self.default == other.default and super().__eq__(other)
 
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     def __set__(self, obj, value: Initial | Constant):
         if isinstance(value, Constant):
             super().__set__(obj, value)
