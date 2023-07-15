@@ -140,11 +140,8 @@ def derive(
                 map=0,
             )
         case (None, assign):
-            return _assign_equation(
-                variable=variable,
-                order=order,
-                expression=assign,
-            )
+            _assign_equation_order(variable=variable, order=order)
+            return Equation(Derivative(variable, order=order), assign)
         case (initial, assign):
             raise ValueError("cannot assign initial and equation.")
 
@@ -183,12 +180,11 @@ def _create_derivative(
     return Derivative(variable, order=order)
 
 
-def _assign_equation(
+def _assign_equation_order(
     *,
     variable: Variable,
     order: int,
-    expression: Initial | Variable,
-) -> Equation:
+):
     if variable.equation_order is not None and variable.equation_order != order:
         raise ValueError(
             f"already assigned an equation to order {variable.equation_order}"
@@ -199,18 +195,14 @@ def _assign_equation(
         )
     else:
         variable.equation_order = order
-        variable.equations.append(expression)
-        return Equation(Derivative(variable, order=order), expression)
 
 
 class Variable(Owned, Scalar):
     derivatives: ChainMap[int, Initial]
     equation_order: int | None = None
-    equations: list[Initial | Variable]
 
     def __init__(self, *, initial: Initial):
         self.derivatives = ChainMap({0: initial}, {})
-        self.equations = []
 
     @property
     def initial(self):
@@ -248,7 +240,6 @@ class Variable(Owned, Scalar):
         if isinstance(value, Variable):
             # Replace descriptor by adding it to obj.__dict__
             # Update derivatives initials
-            # Update equations
             super().__set__(obj, value)
             for order, initial in self.derivatives.items():
                 _create_derivative(
@@ -257,17 +248,8 @@ class Variable(Owned, Scalar):
                     initial=initial,
                     map=1,
                 )
-
             if (order := self.equation_order) is not None:
-                mapper = ClsMapper(obj, self.parent)
-                for expression in self.equations:
-                    if isinstance(expression, Symbol):
-                        expression = expression.subs(mapper)
-                    _assign_equation(
-                        variable=value,
-                        order=order,
-                        expression=expression,
-                    )
+                _assign_equation_order(variable=value, order=order)
         elif isinstance(value, Initial):
             # Get or create instance with getattr
             # Update initial value
@@ -287,16 +269,9 @@ class Variable(Owned, Scalar):
             cls = self.__class__
             copy = cls.__new__(cls)
             # Set name and parent and save in instance.__dict__ for future access
-            # Important: this must be done before updating the copy's equations
             super().__set__(obj, copy)
             # Set descriptor derivatives as default derivatives
             copy.derivatives = ChainMap({0: self.initial}, self.derivatives)
-            # Update equations
-            mapper = ClsMapper(obj, self.parent)
-            copy.equations = [
-                eq.subs(mapper) if isinstance(eq, Symbol) else eq
-                for eq in self.equations
-            ]
             copy.equation_order = self.equation_order
             return copy
 
@@ -387,11 +362,8 @@ class Derivative(Variable):
         )
 
     def __lshift__(self, other) -> Equation:
-        return _assign_equation(
-            variable=self.variable,
-            order=self.order,
-            expression=other,
-        )
+        _assign_equation_order(variable=self.variable, order=self.order)
+        return Equation(Derivative(self.variable, order=self.order), other)
 
     def __eq__(self, other: Self) -> bool:
         if other.__class__ is not self.__class__:
