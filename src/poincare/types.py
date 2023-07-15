@@ -37,6 +37,7 @@ class Owned:
             raise TypeError
 
         if value.parent is None and value.name == "":
+            # if it has no name, it was created outside an EagerNamer
             value.__set_name__(obj, self.name)
 
         obj.__dict__[self.name] = value
