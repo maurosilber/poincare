@@ -102,9 +102,26 @@ class ClsMapper(dict):
         self.cls = cls
 
     def get(self, item, default):
-        if isinstance(item, Owned) and item.parent is self.cls:
-            return getattr(self.obj, item.name)
-        return item
+        if not isinstance(item, Owned):
+            return item
+
+        # Recursively look all parents
+        # If an item's parent is cls,
+        #   replace that item for the instance's corresponding item.
+        #   go down the name list to fetch the original item, adn return that
+        # else return the original item as is.
+        default = item
+        names = []
+        while item.parent is not None:
+            names.append(item.name)
+            item = item.parent
+            if item is self.cls:
+                item = self.obj
+                for name in reversed(names):
+                    item = getattr(item, name)
+                return item
+        else:
+            return default
 
 
 def derive(
