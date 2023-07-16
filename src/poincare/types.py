@@ -98,9 +98,9 @@ Initial = Number | Constant
 
 
 class ClsMapper(dict):
-    def __init__(self, obj: System, cls: type[System]):
+    def __init__(self, obj: System):
         self.obj = obj
-        self.cls = cls
+        self.cls = obj.__class__
 
     def get(self, item, default):
         if not isinstance(item, Owned):
@@ -399,7 +399,7 @@ class Equation(Owned):
                     getattr(obj, self.lhs.variable.name),
                     order=self.lhs.order,
                 ),
-                rhs=self.rhs.subs(ClsMapper(obj, cls))
+                rhs=self.rhs.subs(ClsMapper(obj))
                 if isinstance(self.rhs, Symbol)
                 else self.rhs,
             )
