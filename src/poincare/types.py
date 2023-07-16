@@ -25,22 +25,52 @@ class EagerNamer(type):
 
 
 class Owned:
+    """Owned objects are descriptors with a name and a parent.
+
+    Setting an instance attribute (__set__),
+    sets that instance as the parent of that attribute,
+    if it did not have a previous parent set.
+    Hence, it must be an Owned subclass.
+
+    Attribute access from an instance
+    tries to return the object in the instance's __dict__.
+    Otherwise, it creates a copy with self._copy_from,
+    assigns the instance as its parent
+    and saves is in the instance's __dict__.
+    Hence, Owned subclasses must implement self._copy_from.
+    """
+
     name: str = ""
     parent: System | type[System] | None = None
 
-    def __set_name__(self, cls, name: str):
+    def _copy_from(self, parent: System):
+        raise NotImplementedError
+
+    def __set_name__(self, cls: type[System], name: str):
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "parent", cls)
 
     def __set__(self, obj: System, value: Self):
         if not isinstance(value, self.__class__):
-            raise TypeError
+            raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
         if value.parent is None and value.name == "":
             # if it has no name, it was created outside an EagerNamer
             value.__set_name__(obj, self.name)
 
         obj.__dict__[self.name] = value
+
+    def __get__(self, parent: System | None, cls: type[System]):
+        if parent is None:
+            return self
+
+        try:
+            return parent.__dict__[self.name]
+        except KeyError:
+            copy = self._copy_from(parent)
+            copy.__set_name__(parent, self.name)
+            parent.__dict__[self.name] = copy
+            return copy
 
     def __str__(self) -> str:
         return f"{self.parent}.{self.name}"
@@ -62,6 +92,9 @@ class Constant(Owned, Scalar):
     def __init__(self, *, default: Initial):
         self.default = default
 
+    def _copy_from(self, parent: System):
+        return self.__class__(default=self.default)
+
     def __eq__(self, other: Self):
         if other.__class__ is not self.__class__:
             return NotImplemented
@@ -80,17 +113,6 @@ class Constant(Owned, Scalar):
             constant.default = value
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
-
-    def __get__(self, obj, cls):
-        if obj is None:
-            return self
-
-        try:
-            return obj.__dict__[self.name]
-        except KeyError:
-            value = Constant(default=self.default)
-            super().__set__(obj, value)
-            return value
 
 
 Number = int | float | complex
@@ -211,6 +233,14 @@ class Variable(Owned, Scalar):
     def initial(self):
         return self.derivatives[0]
 
+    def _copy_from(self, parent: System):
+        copy = self.__class__(
+            initial=self.initial
+        )  # should initial be here or in maps[1]?
+        copy.derivatives.maps[1] = self.derivatives
+        copy.equation_order = self.equation_order
+        return copy
+
     @overload
     def derive(self, *, initial: None = None, assign: Initial | Variable) -> Equation:
         ...
@@ -261,23 +291,6 @@ class Variable(Owned, Scalar):
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
-    def __get__(self, obj, cls) -> Self:
-        if obj is None:
-            return self
-
-        try:
-            return obj.__dict__[self.name]
-        except KeyError:
-            # Create new instance by copying descriptor.
-            cls = self.__class__
-            copy = cls.__new__(cls)
-            # Set name and parent and save in instance.__dict__ for future access
-            super().__set__(obj, copy)
-            # Set descriptor derivatives as default derivatives
-            copy.derivatives = ChainMap({0: self.initial}, self.derivatives)
-            copy.equation_order = self.equation_order
-            return copy
-
     def __hash__(self) -> int:
         return super().__hash__()
 
@@ -302,6 +315,8 @@ class Derivative(Variable):
         return f"{self.variable}.{self.order}"
 
     def __get__(self, obj, cls) -> Self:
+        """Overrides Owned descriptor, as Derivative behaves as a wrapper for Variable."""
+
         if obj is None:
             return self
 
@@ -383,28 +398,16 @@ class Equation(Owned):
         self.lhs = lhs
         self.rhs = rhs
 
+    def _copy_from(self, parent: System):
+        variable = getattr(parent, self.lhs.variable.name)
+        if isinstance(self.rhs, Symbol):
+            rhs = self.rhs.subs(ClsMapper(parent))
+        else:
+            rhs = self.rhs
+        return self.__class__(Derivative(variable, order=self.lhs.order), rhs)
+
     def __repr__(self):
         return f"Equation({self.lhs} << {self.rhs})"
-
-    def __get__(self, obj, cls) -> Self:
-        if obj is None:
-            return self
-
-        try:
-            return obj.__dict__[self.name]
-        except KeyError:
-            # Recreate the equation by replacing all variables with instance variables.
-            equation = Equation(
-                lhs=Derivative(
-                    getattr(obj, self.lhs.variable.name),
-                    order=self.lhs.order,
-                ),
-                rhs=self.rhs.subs(ClsMapper(obj))
-                if isinstance(self.rhs, Symbol)
-                else self.rhs,
-            )
-            super().__set__(obj, equation)
-            return equation
 
 
 @overload
@@ -476,28 +479,13 @@ class System(Owned, metaclass=EagerNamer):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def __get__(self, obj, cls) -> Self:
-        if obj is None:
-            return self
-
-        if self.name is None:
-            raise RuntimeError
-
-        try:
-            return obj.__dict__[self.name]
-        except KeyError:
-            # Create a new instance by replacing previous arguments,
-            # which were saved in self._kwargs,
-            # with the ones from the corresponding instance
-            kwargs = {
-                k: getattr(obj, v.name)
-                if isinstance(v, Owned) and v.parent is cls
-                else v
-                for k, v in self._kwargs.items()
-            }
-            copy = self.__class__(**kwargs)
-            super().__set__(obj, copy)
-            return copy
+    def _copy_from(self, parent: System):
+        # Create a new instance by replacing previous arguments,
+        # which were saved in self._kwargs,
+        # with the ones from the corresponding instance
+        mapper = ClsMapper(parent)
+        kwargs = {k: mapper.get(v, v) for k, v in self._kwargs.items()}
+        return self.__class__(**kwargs)
 
     def __eq__(self, other: Self):
         """Check equality between Systems.
