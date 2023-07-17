@@ -8,22 +8,6 @@ from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform, overload
 
 
-class OwnedNamerDict(dict):
-    def __setitem__(self, key, value):
-        if isinstance(value, Owned):
-            value.__set_name__(None, key)
-        return super().__setitem__(key, value)
-
-
-class EagerNamer(type):
-    @classmethod
-    def __prepare__(cls, name, bases):
-        return OwnedNamerDict()
-
-    def __repr__(self):
-        return f"<{self.__name__}>"
-
-
 class Owned:
     """Owned objects are descriptors with a name and a parent.
 
@@ -429,6 +413,22 @@ def assign(*, default):
 
 def initial(*, default: Initial) -> Variable:
     return Variable(initial=default)
+
+
+class OwnedNamerDict(dict):
+    def __setitem__(self, key, value):
+        if isinstance(value, Owned):
+            value.__set_name__(None, key)
+        return super().__setitem__(key, value)
+
+
+class EagerNamer(type):
+    @classmethod
+    def __prepare__(cls, name, bases):
+        return OwnedNamerDict()
+
+    def __repr__(self):
+        return f"<{self.__name__}>"
 
 
 @dataclass_transform(
