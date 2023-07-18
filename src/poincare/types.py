@@ -379,6 +379,9 @@ class Derivative(Symbol):
         _assign_equation_order(variable=self.variable, order=self.order)
         return Equation(Derivative(self.variable, order=self.order), other)
 
+    def __hash__(self) -> int:
+        return hash((self.variable, self.order))
+
     def __eq__(self, other: Self) -> bool:
         if other.__class__ is not self.__class__:
             return NotImplemented
