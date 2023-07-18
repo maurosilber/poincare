@@ -1,6 +1,6 @@
 from pytest import mark
 
-from .. import Derivative, System, Variable, initial
+from .. import Constant, Derivative, System, Variable, assign, initial
 
 
 def test_variable():
@@ -12,6 +12,19 @@ def test_variable():
 
     assert Model.x.initial == default
     assert Model().x.initial == default
+    assert Model(x=value).x.initial == value
+
+
+def test_variable_with_constant():
+    default = 0
+    value = 1
+
+    class Model(System):
+        k: Constant = assign(default=default)
+        x: Variable = initial(default=k)
+
+    assert Model.x.initial.default == default
+    assert Model().x.initial.default == default
     assert Model(x=value).x.initial == value
 
 
