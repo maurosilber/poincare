@@ -29,7 +29,7 @@ class Owned:
     name: str = ""
     parent: System | type[System] | None = None
 
-    def _copy_from(self, parent: System):
+    def _copy_from(self, parent: System) -> Self:
         raise NotImplementedError
 
     def __set_name__(self, cls: type[System], name: str):
@@ -59,6 +59,7 @@ class Owned:
             return copy
 
     def __str__(self) -> str:
+        # This is a recursive method, as self.parent is Owned | None
         return f"{self.parent}.{self.name}"
 
     def __repr__(self):
