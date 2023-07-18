@@ -223,6 +223,7 @@ class Variable(Owned, Scalar):
 
     def __init__(self, *, initial: Initial):
         self.derivatives = ChainMap({0: initial}, {})
+        self._equations: list[Equation] = []
 
     @property
     def initial(self):
@@ -392,6 +393,7 @@ class Equation(Owned):
     def __init__(self, lhs: Derivative, rhs: Initial | Variable):
         self.lhs = lhs
         self.rhs = rhs
+        self.lhs.variable._equations.append(self)
 
     def _copy_from(self, parent: System):
         variable = getattr(parent, self.lhs.variable.name)
@@ -478,6 +480,11 @@ class System(Owned, metaclass=EagerNamer):
                 )
             )
 
+        for v in cls.yield_variables(cls, recursive=False):
+            for eq in v._equations:
+                if eq.parent is not cls:
+                    raise NameError
+
     def __init__(self, *args, **kwargs):
         if len(args) > 0:
             raise TypeError("positional parameters are not allowed.")
@@ -515,14 +522,24 @@ class System(Owned, metaclass=EagerNamer):
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
 
-    def yield_variables(self, recursive: bool = True) -> Iterator[Variable]:
-        for k in self.__class__.__dict__.keys():
-            v = getattr(self, k)
+    def yield_variables(
+        self: Self | type[Self],
+        recursive: bool = True,
+    ) -> Iterator[Variable]:
+        if isinstance(self, System):
+            cls = self.__class__
+        else:
+            cls = self
+
+        for k, v in cls.__dict__.items():
             if isinstance(v, System):
                 if recursive is True:
+                    v: System = getattr(self, k)
                     yield from v.yield_variables(recursive=recursive)
+            elif isinstance(v, Derivative):
+                pass
             elif isinstance(v, Variable):
-                yield v
+                yield getattr(self, k)
 
     def yield_equations(self: Self | type[Self]) -> Iterator[Equation]:
         if isinstance(self, System):

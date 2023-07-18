@@ -179,3 +179,26 @@ def test_parameter_equation():
         t = Variable(initial=0)
 
         k: Variable = assign(default=t)
+
+
+def test_unassigned_equation():
+    with raises(NameError):
+
+        class UnassignedLeftShift(System):
+            x = Variable(initial=0)
+            x.derive() << 0
+
+    with raises(NameError):
+
+        class UnassignedDerive(System):
+            x = Variable(initial=0)
+            x.derive(assign=0)
+
+
+def test_shadowed_equations():
+    with raises(NameError):
+
+        class Model(System):
+            x = Variable(initial=0)
+            eq = x.derive(assign=0)
+            eq = x.derive(assign=1)
