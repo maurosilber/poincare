@@ -29,6 +29,27 @@ def test_variable_with_constant():
     assert Model(k=value).x.initial.default == value
 
 
+def test_chained_cosntants():
+    class Model(System):
+        k0: Constant = assign(default=0)
+        k1: Constant = assign(default=k0)
+        k2: Constant = assign(default=k1)
+
+    assert Model.k0.default == 0
+    assert Model.k1.default == Model.k0
+    assert Model.k2.default == Model.k1
+
+    m = Model()
+    assert m.k0.default == 0
+    assert m.k1.default == m.k0
+    assert m.k2.default == m.k1
+
+    m = Model(k0=1)
+    assert m.k0.default == 1
+    assert m.k1.default == m.k0
+    assert m.k2.default == m.k1
+
+
 def test_derivative():
     default = 0
     value = 1

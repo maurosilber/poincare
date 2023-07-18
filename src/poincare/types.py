@@ -79,7 +79,7 @@ class Constant(Owned, Scalar):
         self.default = default
 
     def _copy_from(self, parent: System):
-        return self.__class__(default=self.default)
+        return self.__class__(default=ClsMapper(parent).get(self.default))
 
     def __eq__(self, other: Self):
         if other.__class__ is not self.__class__:
