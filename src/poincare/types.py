@@ -297,7 +297,7 @@ class Variable(Owned, Scalar):
         return self.initial == other.initial and super().__eq__(other)
 
 
-class Derivative(Variable):
+class Derivative(Symbol):
     def __init__(
         self,
         variable: Variable,
@@ -536,8 +536,6 @@ class System(Owned, metaclass=EagerNamer):
                 if recursive is True:
                     v: System = getattr(self, k)
                     yield from v.yield_variables(recursive=recursive)
-            elif isinstance(v, Derivative):
-                pass
             elif isinstance(v, Variable):
                 yield getattr(self, k)
 
