@@ -26,6 +26,7 @@ def test_variable_with_constant():
     assert Model.x.initial.default == default
     assert Model().x.initial.default == default
     assert Model(x=value).x.initial == value
+    assert Model(k=value).x.initial.default == value
 
 
 def test_derivative():

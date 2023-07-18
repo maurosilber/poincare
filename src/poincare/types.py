@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import ClassVar, Iterator
+from typing import ClassVar, Iterator, TypeVar
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform, overload
+
+T = TypeVar("T")
 
 
 class Owned:
@@ -108,8 +110,16 @@ class ClsMapper(dict):
         self.obj = obj
         self.cls = obj.__class__
 
-    def get(self, item, default):
+    def get(self, item: T, default: T | None = None) -> T:
+        if default is None:
+            default = item
+
         if not isinstance(item, Owned):
+            return item
+
+        if item.parent is self.cls:
+            return getattr(self.obj, item.name)
+        else:
             return item
 
         # Recursively look all parents
@@ -219,7 +229,7 @@ class Variable(Owned, Scalar):
 
     def _copy_from(self, parent: System):
         copy = self.__class__(
-            initial=self.initial
+            initial=ClsMapper(parent).get(self.initial)
         )  # should initial be here or in maps[1]?
         copy.derivatives.maps[1] = self.derivatives
         copy.equation_order = self.equation_order
