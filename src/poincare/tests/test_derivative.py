@@ -18,6 +18,24 @@ def test_is_derivative():
     assert is_derivative(p.vx, p.x)
 
 
+def test_duplicate_derivative_assignment():
+    """Taking the same derivative multiple times must create aliases,
+    not new variables."""
+    with raises(ValueError, match="assigned"):
+
+        class WrongModel1(System):
+            x = Variable(initial=0)
+            x1 = x.derive(initial=0)
+            x2 = x.derive(initial=1)
+
+    with raises(ValueError, match="assigned"):
+
+        class WrongModel2(System):
+            x = Variable(initial=0)
+            x1 = x.derive(initial=0)
+            x2 = x.derive(initial=0)
+
+
 def test_duplicate_derivatives():
     """Taking the same derivative multiple times must create aliases,
     not new variables."""
