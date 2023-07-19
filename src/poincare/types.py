@@ -389,7 +389,7 @@ class Derivative(Symbol):
         return self.order == other.order and self.variable == other.variable
 
     def __repr__(self):
-        return f"D({self.variable.name})"
+        return f"D({self.variable.name, self.order})"
 
 
 class Equation(Owned):
