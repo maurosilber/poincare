@@ -1,4 +1,4 @@
-from pytest import raises
+from pytest import mark, raises
 
 from ..compile import get_equations
 from ..types import Derivative, System, Variable, assign, initial
@@ -202,3 +202,24 @@ def test_shadowed_equations():
             x = Variable(initial=0)
             eq = x.derive(assign=0)
             eq = x.derive(assign=1)
+
+
+@mark.xfail
+def test_outer_composition():
+    class Particle(System):
+        x: Variable = initial(default=0)
+
+    class Model(System):
+        p: Particle = Particle(x=0)
+        eq = p.x.derive() << 1
+
+    assert Model.p.x.equation_order == 1
+    equations = get_equations(Model)
+    assert len(equations[Model.p.x]) == 1
+    assert equations[Model.p.x][0].rhs == 1
+
+    m = Model()
+    assert m.p.x.equation_order == 1
+    equations = get_equations(m)
+    assert len(equations[m.p.x]) == 1
+    assert equations[m.p.x][0].rhs == 1
