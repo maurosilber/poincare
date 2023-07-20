@@ -430,7 +430,7 @@ class Derivative(Symbol):
 
 
 class Equation(Owned):
-    def __init__(self, lhs: Derivative, rhs: Initial | Variable):
+    def __init__(self, lhs: Derivative, rhs: Initial | Symbol):
         self.lhs = lhs
         self.rhs = rhs
         self.lhs.variable._equations.append(self)
