@@ -308,6 +308,8 @@ class Derivative(Symbol):
         self.order = order
 
     def __str__(self):
+        if self.order == 0:
+            return f"{self.variable}"
         return f"{self.variable}.{self.order}"
 
     def __get__(self, obj, cls) -> Self:
