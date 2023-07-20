@@ -115,10 +115,10 @@ class ClsMapper(dict):
         if default is None:
             default = item
 
-        if not isinstance(item, Owned):
-            return item
-
-        if item.parent is self.cls:
+        if isinstance(item, Derivative) and item.variable.parent is self.cls:
+            variable = getattr(self.obj, item.variable.name)
+            return Derivative(variable, order=item.order)
+        elif isinstance(item, Owned) and item.parent is self.cls:
             return getattr(self.obj, item.name)
         else:
             return item
