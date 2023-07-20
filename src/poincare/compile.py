@@ -1,28 +1,31 @@
-from collections import defaultdict
-from collections.abc import Sequence, MutableSequence
-from typing import Generator, Any, TypeAlias, Callable, TypeVar
-from types import ModuleType
-from dataclasses import dataclass
-from functools import cache
 import enum
+from collections import defaultdict
+from collections.abc import MutableSequence, Sequence
+from dataclasses import dataclass
+from types import ModuleType
+from typing import Any, Callable, TypeAlias
+
 from symbolite import Symbol, scalar, vector
+from symbolite.core import compile as symbolite_compile
+from symbolite.core import substitute
 
-from symbolite.core import evaluate, substitute, inspect, compile as symbolite_compile
-
-from .types import Equation, System, Variable, Initial, Derivative, Constant
-
+from .types import Constant, Derivative, Initial, System, Variable
 
 RHS: TypeAlias = Initial | Variable
-FunctionT = Callable[[float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]]
+FunctionT = Callable[
+    [float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]
+]
+
 
 def _noop(fn: FunctionT) -> FunctionT:
     return fn
+
 
 class Backend(enum.Enum):
     FIRST_ORDER_VECTORIZED_STD = 0
     FIRST_ORDER_VECTORIZED_NUMPY = 1
     FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = 2
-    
+
 
 def debug_print(d):
     print(f"--- {len(d)} elements ---")
@@ -39,11 +42,21 @@ def eqsum(eqs: list[RHS]) -> scalar.NumberT | Symbol:
         return eqs[0]
     else:
         return sum(eqs)
-    
 
-def ode_vectorize(expr: scalar.NumberT | Symbol, state_names: tuple[str, ...], param_names: tuple[str, ...], state_varname: str="y", param_varname: str="p") -> scalar.NumberT | Symbol:
-    expr = vector.vectorize(expr, state_names, varname=state_varname, scalar_type=SimpleVariable)
-    expr = vector.vectorize(expr, param_names, varname=param_varname, scalar_type=SimpleParameter)
+
+def ode_vectorize(
+    expr: scalar.NumberT | Symbol,
+    state_names: tuple[str, ...],
+    param_names: tuple[str, ...],
+    state_varname: str = "y",
+    param_varname: str = "p",
+) -> scalar.NumberT | Symbol:
+    expr = vector.vectorize(
+        expr, state_names, varname=state_varname, scalar_type=SimpleVariable
+    )
+    expr = vector.vectorize(
+        expr, param_names, varname=param_varname, scalar_type=SimpleParameter
+    )
     return expr
 
 
@@ -65,7 +78,7 @@ def get_initial_values(system: System | type[System]) -> dict[Derivative, Initia
     else:
         vars = system.yield_variables(system)
 
-    initial_values: dict[Derivative,  Initial] = {}
+    initial_values: dict[Derivative, Initial] = {}
     for var in vars:
         for order, initial_value in var.derivatives.items():
             initial_values[Derivative(var, order=order)] = initial_value
@@ -74,24 +87,23 @@ def get_initial_values(system: System | type[System]) -> dict[Derivative, Initia
 
 @dataclass(frozen=True)
 class SimpleVariable(scalar.Scalar):
-    """Special type of Scalar that is evaluated to itself.
-    """
+    """Special type of Scalar that is evaluated to itself."""
 
-    def eval(self, libsl: ModuleType | None=None):
+    def eval(self, libsl: ModuleType | None = None):
         return self
+
 
 @dataclass(frozen=True)
 class SimpleParameter(scalar.Scalar):
-    """Special type of Scalar that is evaluated to itself.
-    """
+    """Special type of Scalar that is evaluated to itself."""
 
-    def eval(self, libsl: ModuleType | None=None):
+    def eval(self, libsl: ModuleType | None = None):
         return self
-    
+
 
 class ToSimpleScalar(dict[Any, Any]):
     """Used to convert Poincare Variables into SelfEvalScalar.
-    
+
     Benefetis:
     - leaner
     - immutable
@@ -99,7 +111,9 @@ class ToSimpleScalar(dict[Any, Any]):
     - can be involved when using evaluate to simplify part of the code.
     """
 
-    def __init__(self, variables: tuple[Variable], parameters: tuple[Variable | Constant]):
+    def __init__(
+        self, variables: tuple[Variable], parameters: tuple[Variable | Constant]
+    ):
         self.variables = variables
         self.parameters = parameters
 
@@ -120,24 +134,22 @@ class ToSimpleScalar(dict[Any, Any]):
         return key
 
 
-def build_first_order_symbolic_ode(system: System,) -> tuple[
-    dict[SimpleVariable, scalar.NumberT | Symbol], 
+def build_first_order_symbolic_ode(
+    system: System,
+) -> tuple[
+    dict[SimpleVariable, scalar.NumberT | Symbol],
     dict[SimpleVariable, scalar.NumberT | Symbol],
     dict[SimpleVariable, scalar.NumberT | Symbol],
     tuple[SimpleVariable],
     tuple[SimpleParameter],
-    ]:
-
+]:
     #############
     # Step 0:
     # Get initial value and flattened equations
 
     initial_values = get_initial_values(system)
-    equations = {
-        k: eqsum(v) 
-        for k, v in get_equations(system).items()
-        }
-    
+    equations = {k: eqsum(v) for k, v in get_equations(system).items()}
+
     #############
     # Step 1:
     # Divide between:
@@ -176,7 +188,6 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
         else:
             variables.add(var)
             assert var.equation_order == max(orders)
-        
 
     #############
     # Step 2
@@ -186,16 +197,19 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
 
     mapper = ToSimpleScalar(variables, parameters)
 
-    # Initial values 
+    # Initial values
     # Map variable to value.
-    ivs: dict[SimpleVariable, Any] = {substitute(k, mapper): substitute(v, mapper) 
-                                      for k, v in initial_values.items()}
-    
+    ivs: dict[SimpleVariable, Any] = {
+        substitute(k, mapper): substitute(v, mapper) for k, v in initial_values.items()
+    }
+
     # Algebraic equations
     # Maps variable to equation.
-    aeqs: dict[SimpleVariable, Any] = {substitute(k, mapper): substitute(v, mapper) 
-                                       for k, v in equations.items()
-                                       if k in parameters}
+    aeqs: dict[SimpleVariable, Any] = {
+        substitute(k, mapper): substitute(v, mapper)
+        for k, v in equations.items()
+        if k in parameters
+    }
 
     # Differential equations
     # Map variable to be derived 1 time to equation.
@@ -222,30 +236,27 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
     state_variables = tuple(deqs.keys())
 
     return (
-        ivs, 
+        ivs,
         aeqs,
-        deqs, 
+        deqs,
         state_variables,
-        tuple(substitute(k, mapper) for k in parameters), 
+        tuple(substitute(k, mapper) for k in parameters),
     )
 
 
-def build_first_order_vectorized_body(system: System) -> tuple[tuple[str, ...], tuple[str, ...], str, str, str]:
-    ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(system)
-   
+def build_first_order_vectorized_body(
+    system: System,
+) -> tuple[tuple[str, ...], tuple[str, ...], str, str, str]:
+    ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(
+        system
+    )
+
     state_names = tuple(sorted(str(v) for v in state_variables))
     param_names = tuple(sorted(str(p) for p in parameters))
 
+    ivs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in ivs.items()}
 
-    ivs = {
-        str(k): ode_vectorize(v, state_names, param_names)
-        for k, v in ivs.items()
-    }
-
-    deqs = {
-        str(k): ode_vectorize(v, state_names, param_names)
-        for k, v in deqs.items()
-    }
+    deqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in deqs.items()}
 
     def slhs(k: str, name: str) -> str:
         if k in state_names:
@@ -256,23 +267,46 @@ def build_first_order_vectorized_body(system: System) -> tuple[tuple[str, ...], 
         raise ValueError(k)
 
     tab = " " * 4
-    
-    initial_body = "\n".join(f"{tab}{slhs(k, 'y0')} = {str(eq)}" for k, eq in ivs.items())
-    initial_def = f"def init(t, y, p, y0):\n{initial_body}\n{tab}return y0"""
 
-    ode_step_body = "\n".join(f"{tab}{slhs(k, 'dy_dt')} = {str(eq)}" for k, eq in deqs.items())
-    ode_step_def = f"def ode_step(t, y, p, dy_dt):\n{ode_step_body}\n{tab}return dy_dt"""
+    initial_body = "\n".join(
+        f"{tab}{slhs(k, 'y0')} = {str(eq)}" for k, eq in ivs.items()
+    )
+    initial_def = f"def init(t, y, p, y0):\n{initial_body}\n{tab}return y0" ""
+
+    ode_step_body = "\n".join(
+        f"{tab}{slhs(k, 'dy_dt')} = {str(eq)}" for k, eq in deqs.items()
+    )
+    ode_step_def = (
+        f"def ode_step(t, y, p, dy_dt):\n{ode_step_body}\n{tab}return dy_dt" ""
+    )
 
     alg_step_body = "# nothing to see yet"
-    alg_step_def = f"def alg_step(t, y, p, dy):\n{tab}{alg_step_body}\n{tab}return y"""
+    alg_step_def = f"def alg_step(t, y, p, dy):\n{tab}{alg_step_body}\n{tab}return y" ""
 
     return state_names, param_names, initial_def, ode_step_def, alg_step_def
 
 
-def build_first_order_functions(system: System, libsl: ModuleType, optimizer: Callable[[FunctionT,], FunctionT]=_noop) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
-    state_names, param_names, initial_def, ode_step_def, alg_step_def = build_first_order_vectorized_body(system)
+def build_first_order_functions(
+    system: System,
+    libsl: ModuleType,
+    optimizer: Callable[
+        [
+            FunctionT,
+        ],
+        FunctionT,
+    ] = _noop,
+) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
+    (
+        state_names,
+        param_names,
+        initial_def,
+        ode_step_def,
+        alg_step_def,
+    ) = build_first_order_vectorized_body(system)
 
-    lm = symbolite_compile(initial_def + "\n" + ode_step_def + "\n" + alg_step_def + "\n")
+    lm = symbolite_compile(
+        initial_def + "\n" + ode_step_def + "\n" + alg_step_def + "\n"
+    )
 
     return (
         state_names,
@@ -283,16 +317,21 @@ def build_first_order_functions(system: System, libsl: ModuleType, optimizer: Ca
     )
 
 
-def compile(system: System, backend: Backend=Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
+def compile(
+    system: System, backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA
+) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
     if backend is Backend.FIRST_ORDER_VECTORIZED_STD:
         from symbolite.impl import libstd
+
         return build_first_order_functions(system, libstd)
     elif backend is Backend.FIRST_ORDER_VECTORIZED_NUMPY:
         from symbolite.impl import libnumpy
+
         return build_first_order_functions(system, libnumpy)
     elif backend is Backend.FIRST_ORDER_VECTORIZED_NUMPY:
-        from symbolite.impl import libnumpy
         import numba
+        from symbolite.impl import libnumpy
+
         return build_first_order_functions(system, libnumpy, numba.njit)
     else:
         raise ValueError(f"Unknown backend {backend}")
