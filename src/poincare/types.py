@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import ClassVar, Iterator, TypeVar
+from typing import ClassVar, Iterator, Literal, TypeVar
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar, Symbol
@@ -46,7 +46,7 @@ class Owned:
 
         obj.__dict__[self.name] = value
 
-    def __get__(self, parent: System | None, cls: type[System]):
+    def __get__(self, parent: System | None, cls: type[System]) -> Self:
         if parent is None:
             return self
 
@@ -217,7 +217,42 @@ def _assign_equation_order(
         variable.equation_order = order
 
 
-class Variable(Owned, Scalar):
+class Parameter(Owned, Scalar):
+    equation_order: int = 0
+
+    def __init__(self, *, default: Initial | Symbol):
+        self.default = default
+
+    def _copy_from(self, parent: System):
+        return self.__class__(default=ClsMapper(parent).get(self.default))
+
+    def derive(self, order: int = 1):
+        return derive(variable=self, order=1, initial=None, assign=None)
+
+    def __set__(self, obj, value: Initial | Symbol):
+        if isinstance(value, Symbol):
+            # Replace descriptor by adding it to obj.__dict__
+            # Update derivatives initials
+            super().__set__(obj, value)
+        elif isinstance(value, Initial):
+            # Get or create instance with getattr
+            # Update initial value
+            variable: Self = getattr(obj, self.name)
+            variable.default = value
+        else:
+            raise TypeError(f"unexpected type {type(value)} for {self.name}")
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    def __eq__(self, other: Self):
+        if other.__class__ is not self.__class__:
+            return NotImplemented
+
+        return self.default == other.default and super().__eq__(other)
+
+
+class Variable(Parameter):
     derivatives: ChainMap[int, Initial]
     equation_order: int | None = None
 
@@ -413,20 +448,20 @@ class Equation(Owned):
 
 
 @overload
-def assign(*, default: Initial) -> Constant:
+def assign(*, default: Initial | Symbol, constant: Literal[False] = False) -> Parameter:
     ...
 
 
 @overload
-def assign(*, default: Variable) -> Variable:
+def assign(*, default: Initial, constant: Literal[True]) -> Constant:
     ...
 
 
-def assign(*, default):
-    if isinstance(default, Variable):
-        return default
-    else:
+def assign(*, default, constant: bool = False):
+    if constant:
         return Constant(default=default)
+    else:
+        return Parameter(default=default)
 
 
 def initial(*, default: Initial) -> Variable:
