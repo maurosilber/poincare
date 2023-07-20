@@ -1,7 +1,7 @@
 from pytest import mark, raises
 
 from ..compile import get_equations
-from ..types import Derivative, System, Variable, assign, initial
+from ..types import Derivative, Parameter, System, Variable, assign, initial
 from .utils import is_same_variable
 
 
@@ -171,7 +171,7 @@ def test_parameter_equation():
     class Model(System):
         t = Variable(initial=0)
 
-        k: Variable = assign(default=t)
+        k: Parameter = assign(default=t)
 
 
 def test_unassigned_equation():

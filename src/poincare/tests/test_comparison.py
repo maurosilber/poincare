@@ -16,7 +16,7 @@ def test_initial_value():
 
 def test_constant():
     class Model(System):
-        x: Constant = assign(default=0)
+        x: Constant = assign(default=0, constant=True)
 
     assert Model() == Model(x=0) == Model(x=Constant(default=0))
     assert Model(x=0) != Model(x=1)

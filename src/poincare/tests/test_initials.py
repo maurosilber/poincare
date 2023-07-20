@@ -20,7 +20,7 @@ def test_variable_with_constant():
     value = 1
 
     class Model(System):
-        k: Constant = assign(default=default)
+        k: Constant = assign(default=default, constant=True)
         x: Variable = initial(default=k)
 
     assert Model.x.initial.default == default
@@ -31,9 +31,9 @@ def test_variable_with_constant():
 
 def test_chained_cosntants():
     class Model(System):
-        k0: Constant = assign(default=0)
-        k1: Constant = assign(default=k0)
-        k2: Constant = assign(default=k1)
+        k0: Constant = assign(default=0, constant=True)
+        k1: Constant = assign(default=k0, constant=True)
+        k2: Constant = assign(default=k1, constant=True)
 
     assert Model.k0.default == 0
     assert Model.k1.default == Model.k0
