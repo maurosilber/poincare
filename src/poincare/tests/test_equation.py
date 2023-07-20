@@ -12,14 +12,15 @@ def test_first_order_equation():
 
     assert is_same_variable(Model.prop.lhs, Model.x.derive())
     assert Model.prop.rhs == Model.x
-    equations = get_equations(Model)
-    assert equations[Model.x][0].rhs == Model.x
 
     model = Model(x=1)
     assert is_same_variable(model.prop.lhs, model.x.derive())
     assert model.prop.rhs == model.x
-    equations = get_equations(model)
-    assert equations[model.x][0].rhs == model.x
+
+    for m in [Model, model]:
+        equations = get_equations(m)
+        x = m.x
+        assert equations[Derivative(x, order=x.equation_order)] == [x]
 
 
 def test_second_order_equation():
@@ -31,14 +32,15 @@ def test_second_order_equation():
 
     assert is_same_variable(Model.force.lhs, Model.vx.derive())
     assert Model.force.rhs == -Model.x
-    equations = get_equations(Model)
-    assert equations[Model.x][0].rhs == -Model.x
 
     model = Model(x=1)
     assert is_same_variable(model.force.lhs, model.vx.derive())
     assert model.force.rhs == -model.x
-    equations = get_equations(model)
-    assert equations[model.x][0].rhs == -model.x
+
+    for m in [Model, model]:
+        equations = get_equations(m)
+        x = m.x
+        assert equations[Derivative(x, order=x.equation_order)] == [-x]
 
 
 def test_second_order_equation_without_first_derivative():
@@ -51,14 +53,15 @@ def test_second_order_equation_without_first_derivative():
 
     assert is_same_variable(Model.force.lhs, Model.x.derive().derive())
     assert Model.force.rhs == -Model.x
-    equations = get_equations(Model)
-    assert equations[Model.x][0].rhs == -Model.x
 
     model = Model(x=1)
     assert is_same_variable(model.force.lhs, model.x.derive().derive())
     assert model.force.rhs == -model.x
-    equations = get_equations(model)
-    assert equations[model.x][0].rhs == -model.x
+
+    for m in [Model, model]:
+        equations = get_equations(m)
+        x = m.x
+        assert equations[Derivative(x, order=x.equation_order)] == [-x]
 
 
 def test_repeated_equations():
@@ -67,18 +70,13 @@ def test_repeated_equations():
         eq1 = x.derive(assign=1)
         eq2 = x.derive(assign=x)
 
-    assert Model.x.equation_order == 1
-    equations = get_equations(Model)
-    assert len(equations[Model.x]) == 2
-    assert equations[Model.x][0].rhs == 1
-    assert equations[Model.x][1].rhs == Model.x
-
-    model = Model(x=1)
-    assert model.x.equation_order == 1
-    equations = get_equations(model)
-    assert len(equations[model.x]) == 2
-    assert equations[model.x][0].rhs == 1
-    assert equations[model.x][1].rhs == model.x
+    for m in [Model, Model(x=1)]:
+        x: Variable = m.x
+        assert x.equation_order == 1
+        equations = get_equations(m)
+        dx = Derivative(x, order=x.equation_order)
+        assert len(equations[dx]) == 2
+        assert equations[dx] == [1, x]
 
 
 def test_two_variable_equations():
@@ -95,12 +93,12 @@ def test_two_variable_equations():
         Model(x=1, y=1),
         Model(y=1, x=1),
     ):
-        for name in ["x", "y"]:
-            variable: Variable = getattr(obj, name)
+        equations = get_equations(obj)
+        for variable in [obj.x, obj.y]:
             assert variable.equation_order == 1
-            equations = get_equations(obj)
-            assert len(equations[variable]) == 1
-            assert equations[variable][0].rhs == obj.x + obj.y
+            derivative = Derivative(variable, order=variable.equation_order)
+            assert len(equations[derivative]) == 1
+            assert equations[derivative] == [obj.x + obj.y]
 
 
 def test_compose_equations():
@@ -117,18 +115,14 @@ def test_compose_equations():
         const = Constant(x=x)
         prop = Proportional(x=x)
 
-    assert Model.x.equation_order == 1
-    equations = get_equations(Model)
-    assert len(equations[Model.x]) == 2
-    assert equations[Model.x][0].rhs == 1
-    assert equations[Model.x][1].rhs == Model.x
+    for m in [Model, Model(x=1)]:
+        equations = get_equations(m)
 
-    model = Model(x=1)
-    assert model.x.equation_order == 1
-    equations = get_equations(model)
-    assert len(equations[model.x]) == 2
-    assert equations[model.x][0].rhs == 1
-    assert equations[model.x][1].rhs == model.x
+        x: Variable = m.x
+        assert x.equation_order == 1
+        dx = Derivative(x, order=x.equation_order)
+        assert len(equations[dx]) == 2
+        assert equations[dx] == [1, x]
 
 
 def test_compose_equations_with_derivatives():
@@ -162,16 +156,15 @@ def test_compose_multilevel_equations():
         x: Variable = initial(default=0)
         eq = Level1(x=x)
 
-    assert Level2.x.equation_order == 1
-    equations = get_equations(Level2)
-    assert len(equations[Level2.x]) == 1
-    assert equations[Level2.x][0].rhs == Level2.x
+    for m in [Level2, Level2(x=1)]:
+        equations = get_equations(m)
 
-    level2 = Level2(x=1)
-    assert level2.x.equation_order == 1
-    equations = get_equations(level2)
-    assert len(equations[level2.x]) == 1
-    assert equations[level2.x][0].rhs == level2.x
+        x: Variable = m.x
+        assert x.equation_order == 1
+
+        dx = Derivative(x, order=x.equation_order)
+        assert len(equations[dx]) == 1
+        assert equations[dx] == [x]
 
 
 def test_parameter_equation():
