@@ -1,11 +1,12 @@
 from collections import defaultdict
-from typing import Generator, Any, TypeAlias
+from collections.abc import Sequence, MutableSequence
+from typing import Generator, Any, TypeAlias, Callable, TypeVar
 from types import ModuleType
 from dataclasses import dataclass
 from functools import cache
 from symbolite import Symbol, scalar, vector
 
-from symbolite.core import evaluate, substitute, inspect
+from symbolite.core import evaluate, substitute, inspect, compile
 
 from .types import Equation, System, Variable, Initial, Derivative, Constant
 
@@ -18,12 +19,6 @@ def debug_print(d):
 
 
 RHS: TypeAlias = Initial | Variable
-
-def to_varname(var: Variable | Derivative, order: int | None=0) -> str:
-    if isinstance(var, Derivative):
-        return to_varname(var.variable, var.order)
-    return str(var) + f".{order}"
-
 
 def get_equations(system: System | type[System]) -> dict[Derivative, list[RHS]]:
     if isinstance(system, System):
@@ -77,20 +72,22 @@ class ToSimpleScalar(dict[Any, Any]):
     - can be involved when using evaluate to simplify part of the code.
     """
 
-    def __init__(self, vars, pars):
-        self.vars = vars
-        self.pars = pars
+    def __init__(self, variables: tuple[Variable], parameters: tuple[Variable | Constant]):
+        self.variables = variables
+        self.parameters = parameters
 
     def get(self, key: Any, default=None):
         if isinstance(key, Constant):
-            return SimpleParameter(to_varname(key))
+            return SimpleParameter(str(key))
         elif isinstance(key, (Derivative, Variable)):
-            if not isinstance(key, Derivative):
-                key = Derivative(key, order=0)
-            if key in self.pars:
-                return SimpleParameter(to_varname(key))
-            elif key in self.vars:
-                return SimpleVariable(to_varname(key))
+            if isinstance(key, Derivative):
+                assert isinstance(key.variable, Variable)
+                if key.variable in self.variables:
+                    return SimpleVariable(str(key))
+            elif key in self.parameters:
+                return SimpleParameter(str(key))
+            elif key in self.variables:
+                return SimpleVariable(str(key))
             else:
                 raise ValueError(f"Not found {key}")
         return key
@@ -123,23 +120,21 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
         for k, v in get_equations(system).items()
         }
     
-    debug_print(equations)
-
     #############
     # Step 1:
     # Divide between:
-    # - parameter vector: variables that appear with in a single "order" and constants.
-    # - state vector: variables appear with more than one "order".
+    # - parameters: variables that appear with in a single "order" and constants.
+    # - variables: variables appear with more than one "order".
 
-    derivatives: set[Derivative] = set()
-    param: set[Constant | Derivative] = set()
+    variables: set[Variable] = set()
+    parameters: set[Constant | Variable] = set()
 
     # Create an inventory of all variables in the systems
     # taking note in which their derivative
     # Either in the LHS of equations and initial values
     inventory: defaultdict[Variable, set[int]] = defaultdict(set)
-    for der in tuple(initial_values.keys()) + tuple(equations.keys()):
-        inventory[der.variable].add(der.order)
+    for var in tuple(initial_values.keys()) + tuple(equations.keys()):
+        inventory[var.variable].add(var.order)
 
     # TODO. it is also a parameter if it depends on time.
 
@@ -151,19 +146,17 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
             for named in value.yield_named():
                 if isinstance(named, Constant):
                     # Constant are automatically added to parameters
-                    param.add(named)
-                elif isinstance(named, Variable):
-                    inventory[named].add(0)
+                    parameters.add(named)
                 elif isinstance(named, Derivative):
                     inventory[named.variable].add(named.order)
-    
+                elif isinstance(named, Variable):
+                    inventory[named].add(0)
+
     for var, orders in inventory.items():
         if len(orders) == 1:
-            param.add(Derivative(var, order=orders.pop()))
+            parameters.add(var)
         else:
-            # also take not of the maximum order found!
-            for order in orders:
-                derivatives.add(Derivative(var, order=order))
+            variables.add(var)
             assert var.equation_order == max(orders)
         
 
@@ -173,7 +166,7 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
     # according to the previous categorization
     # and add first order equations
 
-    mapper = ToSimpleScalar(derivatives, param)
+    mapper = ToSimpleScalar(variables, parameters)
 
     # Initial values 
     # Map variable to value.
@@ -184,71 +177,62 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
     # Maps variable to equation.
     aeqs: dict[SimpleVariable, Any] = {substitute(k, mapper): substitute(v, mapper) 
                                        for k, v in equations.items()
-                                       if k in param}
+                                       if k in parameters}
 
     # Differential equations
     # Map variable to be derived 1 time to equation.
     # (unlike 'equations' that maps derived variable to equation)
     deqs: dict[SimpleVariable, Any] = {}
 
-    state: list[SimpleVariable] = []
-    for der in derivatives:
-        assert der.variable.equation_order is not None
+    for var in sorted(variables):
+        # For each variable
+        # - create first order differential equations except for var.equation_order
+        # - for the var.equation_order use the defined equation
+        assert var.equation_order is not None
+        current: Variable | Derivative = var
+        for _ in range(var.equation_order - 1):
+            upcoming = current.derive()
+            deqs[SimpleVariable(str(current))] = SimpleVariable(str(upcoming))
+            current = upcoming
 
-        # All derivatives go into the state vecotr
-        if der.order != der.variable.equation_order:
-            deqs[SimpleVariable(to_varname(der))] = SimpleVariable(to_varname(der.derive()))
-            state.append(SimpleVariable(to_varname(der)))
-    
-    seen = set()
-    for der in derivatives:
-        if der.variable in seen:
-            continue
-        assert der.variable.equation_order is not None
-        deqs[SimpleVariable(to_varname(der.variable, der.variable.equation_order - 1))] = substitute(equations[Derivative(der.variable, order=der.variable.equation_order)], mapper) 
-        seen.add(der.variable)
+        lhs = SimpleVariable(str(current))
+        rhs = substitute(equations[current.derive()], mapper)
+        deqs[lhs] = rhs
 
-    debug_print(deqs)
+    # The state variables are all the keys in the differential equations
+    # TODO: add algebraic equations
+    state_variables = tuple(deqs.keys())
 
     return (
         ivs, 
         aeqs,
         deqs, 
-        tuple(state),
-        tuple(substitute(k, mapper) for k in param), 
+        state_variables,
+        tuple(substitute(k, mapper) for k in parameters), 
     )
 
 
-def ode_vectorize(expr: scalar.NumberT | Symbol, state_names: tuple[str], param_names: tuple[str], state_varname: str="y", param_varname: str="p") -> scalar.NumberT | Symbol:
+def ode_vectorize(expr: scalar.NumberT | Symbol, state_names: tuple[str, ...], param_names: tuple[str, ...], state_varname: str="y", param_varname: str="p") -> scalar.NumberT | Symbol:
     expr = vector.vectorize(expr, state_names, varname=state_varname, scalar_type=SimpleVariable)
     expr = vector.vectorize(expr, param_names, varname=param_varname, scalar_type=SimpleParameter)
     return expr
 
 
-def build_vectorized_first_order(system: System):
-    initial_values, aeqs, differential_equations, state, param = build_first_order_symbolic_ode(system)
+def build_vectorized_first_order(system: System) -> tuple[tuple[str, ...], tuple[str, ...], str, str, str]:
+    ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(system)
    
-    state_names = tuple(sorted(str(v) for v in state))
-    param_names = tuple(sorted(str(p) for p in param))
+    state_names = tuple(sorted(str(v) for v in state_variables))
+    param_names = tuple(sorted(str(p) for p in parameters))
 
-    # initial_values = {
-    #     k: evaluate(v, libnumpy)
-    #     for k, v in initial_values.items()
-    # }
 
-    # differential_equations = {
-    #     k: evaluate(v, libnumpy)
-    #     for k, v in differential_equations.items()
-    # }
-
-    initial_values = {
+    ivs = {
         str(k): ode_vectorize(v, state_names, param_names)
-        for k, v in initial_values.items()
+        for k, v in ivs.items()
     }
 
-    differential_equations = {
+    deqs = {
         str(k): ode_vectorize(v, state_names, param_names)
-        for k, v in differential_equations.items()
+        for k, v in deqs.items()
     }
 
     def slhs(k: str, name: str) -> str:
@@ -261,14 +245,13 @@ def build_vectorized_first_order(system: System):
 
     tab = " " * 4
     
-    initial_body = "\n".join(f"{tab}{slhs(k, 'y0')} = {str(eq)}" for k, eq in initial_values.items())
+    initial_body = "\n".join(f"{tab}{slhs(k, 'y0')} = {str(eq)}" for k, eq in ivs.items())
     initial_def = f"def init(t, y, p, y0):\n{initial_body}\n{tab}return y0"""
 
-    ode_step_body = "\n".join(f"{tab}{slhs(k, 'dy_dt')} = {str(eq)}" for k, eq in differential_equations.items())
-    ode_step_def = f"def ode_step(t, y, p, dy):\n{ode_step_body}\n{tab}return dy_dt"""
+    ode_step_body = "\n".join(f"{tab}{slhs(k, 'dy_dt')} = {str(eq)}" for k, eq in deqs.items())
+    ode_step_def = f"def ode_step(t, y, p, dy_dt):\n{ode_step_body}\n{tab}return dy_dt"""
 
     alg_step_body = "# nothing to see yet"
     alg_step_def = f"def alg_step(t, y, p, dy):\n{tab}{alg_step_body}\n{tab}return y"""
-
 
     return state_names, param_names, initial_def, ode_step_def, alg_step_def
