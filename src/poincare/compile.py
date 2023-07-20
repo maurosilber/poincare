@@ -4,11 +4,25 @@ from typing import Generator, Any, TypeAlias, Callable, TypeVar
 from types import ModuleType
 from dataclasses import dataclass
 from functools import cache
+import enum
 from symbolite import Symbol, scalar, vector
 
-from symbolite.core import evaluate, substitute, inspect, compile
+from symbolite.core import evaluate, substitute, inspect, compile as symbolite_compile
 
 from .types import Equation, System, Variable, Initial, Derivative, Constant
+
+
+RHS: TypeAlias = Initial | Variable
+FunctionT = Callable[[float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]]
+
+def _noop(fn: FunctionT) -> FunctionT:
+    return fn
+
+class Backend(enum.Enum):
+    FIRST_ORDER_VECTORIZED_STD = 0
+    FIRST_ORDER_VECTORIZED_NUMPY = 1
+    FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = 2
+    
 
 def debug_print(d):
     print(f"--- {len(d)} elements ---")
@@ -18,7 +32,20 @@ def debug_print(d):
     print("-----------")
 
 
-RHS: TypeAlias = Initial | Variable
+def eqsum(eqs: list[RHS]) -> scalar.NumberT | Symbol:
+    if len(eqs) == 0:
+        return 0
+    elif len(eqs) == 1:
+        return eqs[0]
+    else:
+        return sum(eqs)
+    
+
+def ode_vectorize(expr: scalar.NumberT | Symbol, state_names: tuple[str, ...], param_names: tuple[str, ...], state_varname: str="y", param_varname: str="p") -> scalar.NumberT | Symbol:
+    expr = vector.vectorize(expr, state_names, varname=state_varname, scalar_type=SimpleVariable)
+    expr = vector.vectorize(expr, param_names, varname=param_varname, scalar_type=SimpleParameter)
+    return expr
+
 
 def get_equations(system: System | type[System]) -> dict[Derivative, list[RHS]]:
     if isinstance(system, System):
@@ -91,15 +118,6 @@ class ToSimpleScalar(dict[Any, Any]):
             else:
                 raise ValueError(f"Not found {key}")
         return key
-
-
-def eqsum(eqs: list[RHS]):
-    if len(eqs) == 0:
-        return 0
-    elif len(eqs) == 1:
-        return eqs[0]
-    else:
-        return sum(eqs)
 
 
 def build_first_order_symbolic_ode(system: System,) -> tuple[
@@ -212,13 +230,7 @@ def build_first_order_symbolic_ode(system: System,) -> tuple[
     )
 
 
-def ode_vectorize(expr: scalar.NumberT | Symbol, state_names: tuple[str, ...], param_names: tuple[str, ...], state_varname: str="y", param_varname: str="p") -> scalar.NumberT | Symbol:
-    expr = vector.vectorize(expr, state_names, varname=state_varname, scalar_type=SimpleVariable)
-    expr = vector.vectorize(expr, param_names, varname=param_varname, scalar_type=SimpleParameter)
-    return expr
-
-
-def build_vectorized_first_order(system: System) -> tuple[tuple[str, ...], tuple[str, ...], str, str, str]:
+def build_first_order_vectorized_body(system: System) -> tuple[tuple[str, ...], tuple[str, ...], str, str, str]:
     ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(system)
    
     state_names = tuple(sorted(str(v) for v in state_variables))
@@ -256,16 +268,11 @@ def build_vectorized_first_order(system: System) -> tuple[tuple[str, ...], tuple
 
     return state_names, param_names, initial_def, ode_step_def, alg_step_def
 
-FunctionT = Callable[[float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]]
 
-def _noop(fn: FunctionT) -> FunctionT:
-    return fn
+def build_first_order_functions(system: System, libsl: ModuleType, optimizer: Callable[[FunctionT,], FunctionT]=_noop) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
+    state_names, param_names, initial_def, ode_step_def, alg_step_def = build_first_order_vectorized_body(system)
 
-
-def build_functions(system: System, libsl: ModuleType, optimizer: Callable[[FunctionT,], FunctionT]=_noop) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
-    state_names, param_names, initial_def, ode_step_def, alg_step_def = build_vectorized_first_order(system)
-
-    lm = compile(initial_def + "\n" + ode_step_def + "\n" + alg_step_def + "\n")
+    lm = symbolite_compile(initial_def + "\n" + ode_step_def + "\n" + alg_step_def + "\n")
 
     return (
         state_names,
@@ -274,3 +281,18 @@ def build_functions(system: System, libsl: ModuleType, optimizer: Callable[[Func
         optimizer(lm["ode_step"]),
         optimizer(lm["alg_step"]),
     )
+
+
+def compile(system: System, backend: Backend=Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
+    if backend is Backend.FIRST_ORDER_VECTORIZED_STD:
+        from symbolite.impl import libstd
+        return build_first_order_functions(system, libstd)
+    elif backend is Backend.FIRST_ORDER_VECTORIZED_NUMPY:
+        from symbolite.impl import libnumpy
+        return build_first_order_functions(system, libnumpy)
+    elif backend is Backend.FIRST_ORDER_VECTORIZED_NUMPY:
+        from symbolite.impl import libnumpy
+        import numba
+        return build_first_order_functions(system, libnumpy, numba.njit)
+    else:
+        raise ValueError(f"Unknown backend {backend}")
