@@ -41,7 +41,7 @@ def eqsum(eqs: list[RHS]) -> scalar.NumberT | Symbol:
     elif len(eqs) == 1:
         return eqs[0]
     else:
-        return sum(eqs)
+        return sum(eqs[1:], start=eqs[0])
 
 
 def ode_vectorize(
