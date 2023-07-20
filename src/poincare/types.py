@@ -489,6 +489,7 @@ class System(Owned, metaclass=EagerNamer):
             for eq in v._equations:
                 if eq.parent is not cls:
                     raise NameError
+            v._equations.clear()
 
     def __init__(self, *args, **kwargs):
         if len(args) > 0:
