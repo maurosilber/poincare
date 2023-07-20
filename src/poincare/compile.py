@@ -255,3 +255,22 @@ def build_vectorized_first_order(system: System) -> tuple[tuple[str, ...], tuple
     alg_step_def = f"def alg_step(t, y, p, dy):\n{tab}{alg_step_body}\n{tab}return y"""
 
     return state_names, param_names, initial_def, ode_step_def, alg_step_def
+
+FunctionT = Callable[[float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]]
+
+def _noop(fn: FunctionT) -> FunctionT:
+    return fn
+
+
+def build_functions(system: System, libsl: ModuleType, optimizer: Callable[[FunctionT,], FunctionT]=_noop) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
+    state_names, param_names, initial_def, ode_step_def, alg_step_def = build_vectorized_first_order(system)
+
+    lm = compile(initial_def + "\n" + ode_step_def + "\n" + alg_step_def + "\n")
+
+    return (
+        state_names,
+        param_names,
+        optimizer(lm["init"]),
+        optimizer(lm["ode_step"]),
+        optimizer(lm["alg_step"]),
+    )
