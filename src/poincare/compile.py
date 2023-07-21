@@ -9,7 +9,7 @@ from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
 from symbolite.core import substitute
 
-from .types import Constant, Derivative, Initial, System, Variable
+from .types import Constant, Derivative, Initial, System, Variable, Parameter
 
 RHS: TypeAlias = Initial | Variable
 FunctionT = Callable[
@@ -118,7 +118,7 @@ class ToSimpleScalar(dict[Any, Any]):
         self.parameters = parameters
 
     def get(self, key: Any, default=None):
-        if isinstance(key, Constant):
+        if isinstance(key, (Constant, Parameter)):
             return SimpleParameter(str(key))
         elif isinstance(key, (Derivative, Variable)):
             if isinstance(key, Derivative):
@@ -174,7 +174,7 @@ def build_first_order_symbolic_ode(
             if not hasattr(value, "yield_named"):
                 continue
             for named in value.yield_named():
-                if isinstance(named, Constant):
+                if isinstance(named, (Constant, Parameter)):
                     # Constant are automatically added to parameters
                     parameters.add(named)
                 elif isinstance(named, Derivative):
