@@ -9,7 +9,7 @@ from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
 from symbolite.core import substitute
 
-from .types import Constant, Derivative, Initial, System, Variable, Parameter
+from .types import Constant, Derivative, Initial, Parameter, System, Variable
 
 RHS: TypeAlias = Initial | Variable
 FunctionT = Callable[
@@ -118,9 +118,7 @@ class ToSimpleScalar(dict[Any, Any]):
         self.parameters = parameters
 
     def get(self, key: Any, default=None):
-        if isinstance(key, (Constant, Parameter)):
-            return SimpleParameter(str(key))
-        elif isinstance(key, (Derivative, Variable)):
+        if isinstance(key, (Derivative, Variable)):
             if isinstance(key, Derivative):
                 assert isinstance(key.variable, Variable)
                 if key.variable in self.variables:
@@ -131,6 +129,8 @@ class ToSimpleScalar(dict[Any, Any]):
                 return SimpleVariable(str(key))
             else:
                 raise ValueError(f"Not found {key}")
+        elif isinstance(key, (Constant, Parameter)):
+            return SimpleParameter(str(key))
         return key
 
 
@@ -174,13 +174,13 @@ def build_first_order_symbolic_ode(
             if not hasattr(value, "yield_named"):
                 continue
             for named in value.yield_named():
-                if isinstance(named, (Constant, Parameter)):
-                    # Constant are automatically added to parameters
-                    parameters.add(named)
-                elif isinstance(named, Derivative):
+                if isinstance(named, Derivative):
                     inventory[named.variable].add(named.order)
                 elif isinstance(named, Variable):
                     inventory[named].add(0)
+                elif isinstance(named, (Constant, Parameter)):
+                    # Constant are automatically added to parameters
+                    parameters.add(named)
 
     for var, orders in inventory.items():
         if len(orders) == 1:
@@ -203,7 +203,7 @@ def build_first_order_symbolic_ode(
         substitute(k, mapper): substitute(v, mapper) for k, v in initial_values.items()
     }
 
-    def depends_on_at_least_one_variable_or_time(value: Any)-> bool:
+    def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
         if not hasattr(value, "yield_named"):
             return False
         for named in value.yield_named():
@@ -215,11 +215,10 @@ def build_first_order_symbolic_ode(
             #    return True
         return False
 
-            
     # Algebraic equations
     # Maps variable to equation.
     aeqs: dict[SimpleVariable, Any] = {
-        # TODO: this is wrong. Should not get k.default but rather get it from 
+        # TODO: this is wrong. Should not get k.default but rather get it from
         # Equations??
         substitute(k, mapper): substitute(k.default, mapper)
         for k in parameters
@@ -297,11 +296,12 @@ def build_first_order_vectorized_body(
     )
 
     update_param_def = (
-        f"def update_param(t, y, p0, p):\n{update_param_body}\n{tab}return p" "" 
+        f"def update_param(t, y, p0, p):\n{update_param_body}\n{tab}return p" ""
     )
 
     ode_step_def = (
-        f"def ode_step(t, y, p, ydot):\n{update_param_body}\n{ode_step_body}\n{tab}return ydot" ""
+        f"def ode_step(t, y, p, ydot):\n{update_param_body}\n{ode_step_body}\n{tab}return ydot"
+        ""
     )
 
     return state_names, param_names, initial_def, ode_step_def, update_param_def
@@ -326,8 +326,7 @@ def build_first_order_functions(
     ) = build_first_order_vectorized_body(system)
 
     lm = symbolite_compile(
-        initial_def + "\n" + ode_step_def + "\n" + update_param_def + "\n",
-        libsl
+        initial_def + "\n" + ode_step_def + "\n" + update_param_def + "\n", libsl
     )
 
     return (
