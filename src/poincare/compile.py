@@ -203,12 +203,27 @@ def build_first_order_symbolic_ode(
         substitute(k, mapper): substitute(v, mapper) for k, v in initial_values.items()
     }
 
+    def depends_on_at_least_one_variable_or_time(value: Any)-> bool:
+        if not hasattr(value, "yield_named"):
+            return False
+        for named in value.yield_named():
+            if isinstance(named, Derivative):
+                return True
+            elif isinstance(named, Variable):
+                return True
+            # if time:
+            #    return True
+        return False
+
+            
     # Algebraic equations
     # Maps variable to equation.
     aeqs: dict[SimpleVariable, Any] = {
-        substitute(k, mapper): substitute(v, mapper)
-        for k, v in equations.items()
-        if k in parameters
+        # TODO: this is wrong. Should not get k.default but rather get it from 
+        # Equations??
+        substitute(k, mapper): substitute(k.default, mapper)
+        for k in parameters
+        if depends_on_at_least_one_variable_or_time(k.default)
     }
 
     # Differential equations
@@ -255,7 +270,7 @@ def build_first_order_vectorized_body(
     param_names = tuple(sorted(str(p) for p in parameters))
 
     ivs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in ivs.items()}
-
+    aeqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in aeqs.items()}
     deqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in deqs.items()}
 
     def slhs(k: str, name: str) -> str:
@@ -271,19 +286,25 @@ def build_first_order_vectorized_body(
     initial_body = "\n".join(
         f"{tab}{slhs(k, 'y0')} = {str(eq)}" for k, eq in ivs.items()
     )
-    initial_def = f"def init(t, y, p, y0):\n{initial_body}\n{tab}return y0" ""
+    initial_def = f"def init(t, p, y0):\n{initial_body}\n{tab}return y0" ""
+
+    update_param_body = "\n".join(
+        f"{tab}{slhs(k, 'p')} = {str(eq)}" for k, eq in aeqs.items()
+    )
 
     ode_step_body = "\n".join(
-        f"{tab}{slhs(k, 'dy_dt')} = {str(eq)}" for k, eq in deqs.items()
+        f"{tab}{slhs(k, 'ydot')} = {str(eq)}" for k, eq in deqs.items()
     )
+
+    update_param_def = (
+        f"def update_param(t, y, p0, p):\n{update_param_body}\n{tab}return p" "" 
+    )
+
     ode_step_def = (
-        f"def ode_step(t, y, p, dy_dt):\n{ode_step_body}\n{tab}return dy_dt" ""
+        f"def ode_step(t, y, p, ydot):\n{update_param_body}\n{ode_step_body}\n{tab}return ydot" ""
     )
 
-    alg_step_body = "# nothing to see yet"
-    alg_step_def = f"def alg_step(t, y, p, dy):\n{tab}{alg_step_body}\n{tab}return y" ""
-
-    return state_names, param_names, initial_def, ode_step_def, alg_step_def
+    return state_names, param_names, initial_def, ode_step_def, update_param_def
 
 
 def build_first_order_functions(
@@ -301,11 +322,12 @@ def build_first_order_functions(
         param_names,
         initial_def,
         ode_step_def,
-        alg_step_def,
+        update_param_def,
     ) = build_first_order_vectorized_body(system)
 
     lm = symbolite_compile(
-        initial_def + "\n" + ode_step_def + "\n" + alg_step_def + "\n"
+        initial_def + "\n" + ode_step_def + "\n" + update_param_def + "\n",
+        libsl
     )
 
     return (
@@ -313,7 +335,7 @@ def build_first_order_functions(
         param_names,
         optimizer(lm["init"]),
         optimizer(lm["ode_step"]),
-        optimizer(lm["alg_step"]),
+        optimizer(lm["update_param"]),
     )
 
 
