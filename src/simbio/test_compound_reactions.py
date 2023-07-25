@@ -1,6 +1,6 @@
 from poincare.compile import get_equations
 
-from . import Constant, MassAction, Species, System, Variable, assign, initial
+from . import MassAction, Parameter, Species, System, Variable, assign, initial
 
 
 def test_synthesis():
@@ -9,8 +9,8 @@ def test_synthesis():
         B: Variable = initial(default=0)
         AB: Variable = initial(default=0)
 
-        forward_rate: Constant = assign(default=0)
-        reverse_rate: Constant = assign(default=0)
+        forward_rate: Parameter = assign(default=0)
+        reverse_rate: Parameter = assign(default=0)
 
         forward_reaction = MassAction(
             reactants=[A, B],

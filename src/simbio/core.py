@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Callable, Iterator, Self, Sequence
 
-from poincare import Constant, Variable
+from poincare import Constant, Parameter, Variable
 from poincare.types import Equation, Owned, System
 from symbolite import Symbol
 from symbolite.abstract.symbol import BinaryFunction
@@ -92,7 +92,7 @@ class MassAction(Reaction):
         *,
         reactants: Sequence[Symbol] = (),
         products: Sequence[Symbol] = (),
-        rate: float | Constant,
+        rate: float | Constant | Parameter,
     ):
         self.reactants = [Species.from_symbol(r) for r in reactants]
         self.products = [Species.from_symbol(p) for p in products]

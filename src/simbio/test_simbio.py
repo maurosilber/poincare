@@ -1,6 +1,15 @@
 from poincare.compile import get_equations
 
-from . import Constant, MassAction, Reaction, Species, System, Variable, assign, initial
+from . import (
+    MassAction,
+    Parameter,
+    Reaction,
+    Species,
+    System,
+    Variable,
+    assign,
+    initial,
+)
 
 
 def test_one_reactant():
@@ -122,7 +131,7 @@ def test_same_reactant_and_product_with_mass_action():
 def test_mass_action_with_rate_as_parameter():
     class Model(System):
         x: Variable = initial(default=0)
-        rate: Constant = assign(default=42)
+        rate: Parameter = assign(default=42)
         eq = MassAction(
             reactants=[2 * x],
             products=[3 * x],
