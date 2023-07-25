@@ -39,5 +39,5 @@ def test_synthesis():
     reverse_rate = m.eq.reverse_rate * m.eq.AB**1
 
     for var, st in {m.x: -1, m.eq.B: -1, m.eq.AB: 1}.items():
-        set_of_rhs = set(eq.rhs for eq in equations[var])
+        set_of_rhs = set(equations[var.derive()])
         assert set_of_rhs == {st * forward_rate, (-st) * reverse_rate}

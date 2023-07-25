@@ -27,7 +27,7 @@ def test_one_reactant():
 
     equations = get_equations(m)
     assert len(equations) == 1
-    assert equations[m.x][0].rhs == -1.0 * (42 * m.x)
+    assert equations[m.x.derive()] == [-1.0 * (42 * m.x)]
 
 
 def test_one_product():
@@ -45,7 +45,7 @@ def test_one_product():
 
     equations = get_equations(m)
     assert len(equations) == 1
-    assert equations[m.x][0].rhs == 1.0 * 42
+    assert equations[m.x.derive()] == [1.0 * 42]
 
 
 def test_one_reactant_with_stoichiometry():
@@ -63,7 +63,7 @@ def test_one_reactant_with_stoichiometry():
 
     equations = get_equations(m)
     assert len(equations) == 1
-    assert equations[m.x][0].rhs == -2.0 * (42 * m.x)
+    assert equations[m.x.derive()] == [-2.0 * (42 * m.x)]
 
 
 def test_one_product_with_stoichiometry():
@@ -81,7 +81,7 @@ def test_one_product_with_stoichiometry():
 
     equations = get_equations(m)
     assert len(equations) == 1
-    assert equations[m.x][0].rhs == 2.0 * 42
+    assert equations[m.x.derive()] == [2.0 * 42]
 
 
 def test_same_reactant_and_product():
@@ -103,7 +103,7 @@ def test_same_reactant_and_product():
 
     equations = get_equations(m)
     assert len(equations) == 1
-    assert equations[m.x][0].rhs == 1.0 * (42 * m.x)
+    assert equations[m.x.derive()] == [1.0 * (42 * m.x)]
 
 
 def test_same_reactant_and_product_with_mass_action():
@@ -125,7 +125,7 @@ def test_same_reactant_and_product_with_mass_action():
 
     equations = get_equations(m)
     assert len(equations) == 1
-    assert equations[m.x][0].rhs == 1.0 * (42 * m.x**2)
+    assert equations[m.x.derive()] == [1.0 * (42 * m.x**2)]
 
 
 def test_mass_action_with_rate_as_parameter():
@@ -148,4 +148,4 @@ def test_mass_action_with_rate_as_parameter():
 
     equations = get_equations(m)
     assert len(equations) == 1
-    assert equations[m.x][0].rhs == 1.0 * (m.rate * m.x**2)
+    assert equations[m.x.derive()] == [1.0 * (m.rate * m.x**2)]
