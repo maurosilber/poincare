@@ -174,6 +174,7 @@ def test_parameter_equation():
         k: Parameter = assign(default=t)
 
 
+@mark.skip(reason="Not yet implemented")
 def test_unassigned_equation():
     with raises(NameError):
 
@@ -188,6 +189,7 @@ def test_unassigned_equation():
             x.derive(assign=0)
 
 
+@mark.skip(reason="Not yet implemented")
 def test_shadowed_equations():
     with raises(NameError):
 

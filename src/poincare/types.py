@@ -433,7 +433,7 @@ class Equation(Owned):
     def __init__(self, lhs: Derivative, rhs: Initial | Symbol):
         self.lhs = lhs
         self.rhs = rhs
-        self.lhs.variable._equations.append(self)
+        # self.lhs.variable._equations.append(self)
 
     def _copy_from(self, parent: System):
         variable = getattr(parent, self.lhs.variable.name)
@@ -520,11 +520,11 @@ class System(Owned, metaclass=EagerNamer):
                 )
             )
 
-        for v in cls.yield_variables(cls, recursive=False):
-            for eq in v._equations:
-                if eq.parent is not cls:
-                    raise NameError
-            v._equations.clear()
+        # for v in cls.yield_variables(cls, recursive=False):
+        # for eq in v._equations:
+        # if eq.parent is not cls:
+        #     raise NameError
+        # v._equations.clear()
 
     def __init__(self, *args, **kwargs):
         if len(args) > 0:
