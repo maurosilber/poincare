@@ -43,6 +43,26 @@ def test_second_order_equation():
         assert equations[Derivative(x, order=x.equation_order)] == [-x]
 
 
+def test_second_order_equation_with_derivative():
+    class Model(System):
+        x: Variable = initial(default=0)
+        vx = x.derive(initial=0)
+
+        force = vx.derive(assign=-vx)
+
+    assert is_same_variable(Model.force.lhs, Model.vx.derive())
+    assert Model.force.rhs == -Model.vx
+
+    model = Model(x=1)
+    assert is_same_variable(model.force.lhs, model.vx.derive())
+    assert model.force.rhs == -model.vx
+
+    for m in [Model, model]:
+        equations = get_equations(m)
+        x = m.x
+        assert equations[Derivative(x, order=x.equation_order)] == [-m.vx]
+
+
 def test_second_order_equation_without_first_derivative():
     """Taking the second derivative 'directly',
     without defining the first derivative."""

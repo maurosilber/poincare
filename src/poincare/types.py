@@ -233,7 +233,7 @@ class Variable(Parameter):
         return self.initial == other.initial and super().__eq__(other)
 
 
-class Derivative(Symbol):
+class Derivative(Node, Symbol):
     def __init__(
         self,
         variable: Variable,
