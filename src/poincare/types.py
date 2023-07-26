@@ -43,28 +43,16 @@ Number = int | float | complex
 Initial = Number | Constant
 
 
-def derive(
-    *,
-    variable: Variable,
-    order: int,
-    initial=None,
-    assign=None,
-):
-    match (initial, assign):
-        case (None, None):
-            return Derivative(variable=variable, order=order)
-        case (initial, None):
-            return _create_derivative(
-                variable=variable,
-                order=order,
-                initial=initial,  # type: ignore
-                map=0,
-            )
-        case (None, assign):
-            _assign_equation_order(variable=variable, order=order)
-            return Equation(Derivative(variable, order=order), assign)
-        case (initial, assign):
-            raise ValueError("cannot assign initial and equation.")
+def derive(*, variable: Variable, order: int, initial: Initial | None = None):
+    if initial is None:
+        return Derivative(variable=variable, order=order)
+    else:
+        return _create_derivative(
+            variable=variable,
+            order=order,
+            initial=initial,  # type: ignore
+            map=0,
+        )
 
 
 def _create_derivative(
@@ -128,7 +116,7 @@ class Parameter(Node, Scalar):
         return self.__class__(default=NodeMapper(parent).get(self.default))
 
     def derive(self, order: int = 1):
-        return derive(variable=self, order=1, initial=None, assign=None)
+        return derive(variable=self, order=1, initial=None)
 
     def __set__(self, obj, value: Initial | Symbol):
         if isinstance(value, Symbol):
@@ -173,26 +161,8 @@ class Variable(Parameter):
         copy.equation_order = self.equation_order
         return copy
 
-    @overload
-    def derive(self, *, initial: None = None, assign: Initial | Variable) -> Equation:
-        ...
-
-    @overload
-    def derive(
-        self,
-        *,
-        initial: Initial | None = None,
-        assign: None = None,
-    ) -> Derivative:
-        ...
-
-    def derive(self, *, initial=None, assign=None):
-        return derive(
-            variable=self,
-            order=1,
-            initial=initial,
-            assign=assign,
-        )
+    def derive(self, *, initial: Initial | None = None) -> Derivative:
+        return derive(variable=self, order=1, initial=initial)
 
     def __set__(self, obj, value: Variable | Initial):
         """Allows to override the annotation in System.__init__."""
@@ -282,36 +252,8 @@ class Derivative(Node, Symbol):
     def initial(self):
         return self.variable.derivatives[self.order]
 
-    @overload
-    def derive(
-        self,
-        *,
-        initial: None = None,
-        assign: Initial | Variable,
-    ) -> Equation:
-        ...
-
-    @overload
-    def derive(
-        self,
-        *,
-        initial: Initial | None = None,
-        assign: None = None,
-    ) -> Derivative:
-        ...
-
-    def derive(
-        self,
-        *,
-        initial=None,
-        assign=None,
-    ):
-        return derive(
-            variable=self.variable,
-            order=self.order + 1,
-            initial=initial,
-            assign=assign,
-        )
+    def derive(self, *, initial: Initial | None = None) -> Derivative:
+        return derive(variable=self.variable, order=self.order + 1, initial=initial)
 
     def __lshift__(self, other) -> Equation:
         _assign_equation_order(variable=self.variable, order=self.order)

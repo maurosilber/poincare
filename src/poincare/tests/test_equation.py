@@ -8,7 +8,7 @@ from .utils import is_same_variable
 def test_first_order_equation():
     class Model(System):
         x: Variable = initial(default=0)
-        prop = x.derive(assign=x)
+        prop = x.derive() << x
 
     assert is_same_variable(Model.prop.lhs, Model.x.derive())
     assert Model.prop.rhs == Model.x
@@ -28,7 +28,7 @@ def test_second_order_equation():
         x: Variable = initial(default=0)
         vx = x.derive(initial=0)
 
-        force = vx.derive(assign=-x)
+        force = vx.derive() << -x
 
     assert is_same_variable(Model.force.lhs, Model.vx.derive())
     assert Model.force.rhs == -Model.x
@@ -48,7 +48,7 @@ def test_second_order_equation_with_derivative():
         x: Variable = initial(default=0)
         vx = x.derive(initial=0)
 
-        force = vx.derive(assign=-vx)
+        force = vx.derive() << -vx
 
     assert is_same_variable(Model.force.lhs, Model.vx.derive())
     assert Model.force.rhs == -Model.vx
@@ -69,7 +69,7 @@ def test_second_order_equation_without_first_derivative():
 
     class Model(System):
         x: Variable = initial(default=0)
-        force = x.derive(initial=0.0).derive(assign=-x)
+        force = x.derive(initial=0.0).derive() << -x
 
     assert is_same_variable(Model.force.lhs, Model.x.derive().derive())
     assert Model.force.rhs == -Model.x
@@ -84,11 +84,32 @@ def test_second_order_equation_without_first_derivative():
         assert equations[Derivative(x, order=x.equation_order)] == [-x]
 
 
+def test_second_order_equation_without_first_derivative_2():
+    """Taking the second derivative 'directly',
+    without defining the first derivative."""
+
+    class Model(System):
+        x: Variable = initial(default=0)
+        force = x.derive(initial=0.0).derive() << -x.derive()
+
+    assert is_same_variable(Model.force.lhs, Model.x.derive().derive())
+    assert Model.force.rhs == -Model.x.derive()
+
+    model = Model(x=1)
+    assert is_same_variable(model.force.lhs, model.x.derive().derive())
+    assert model.force.rhs == -model.x.derive()
+
+    for m in [Model, model]:
+        equations = get_equations(m)
+        x = m.x
+        assert equations[Derivative(x, order=x.equation_order)] == [-x.derive()]
+
+
 def test_repeated_equations():
     class Model(System):
         x: Variable = initial(default=0)
-        eq1 = x.derive(assign=1)
-        eq2 = x.derive(assign=x)
+        eq1 = x.derive() << 1
+        eq2 = x.derive() << x
 
     for m in [Model, Model(x=1)]:
         x: Variable = m.x
@@ -124,11 +145,11 @@ def test_two_variable_equations():
 def test_compose_equations():
     class Constant(System):
         x: Variable = initial(default=0)
-        eq = x.derive(assign=1)
+        eq = x.derive() << 1
 
     class Proportional(System):
         x: Variable = initial(default=0)
-        eq = x.derive(assign=x)
+        eq = x.derive() << x
 
     class Model(System):
         x: Variable = initial(default=0)
@@ -148,12 +169,12 @@ def test_compose_equations():
 def test_compose_equations_with_derivatives():
     class ConstantIncrease(System):
         x: Variable = initial(default=0)
-        eq = x.derive(assign=1)
+        eq = x.derive() << 1
 
     class Drag(System):
         x: Variable = initial(default=0)
         vx: Derivative = x.derive(initial=0)
-        eq = vx.derive(assign=vx)
+        eq = vx.derive() << vx
 
     with raises(ValueError, match="assigned"):
 
@@ -206,7 +227,7 @@ def test_unassigned_equation():
 
         class UnassignedDerive(System):
             x = Variable(initial=0)
-            x.derive(assign=0)
+            x.derive() << 0
 
 
 @mark.skip(reason="Not yet implemented")
@@ -215,8 +236,8 @@ def test_shadowed_equations():
 
         class Model(System):
             x = Variable(initial=0)
-            eq = x.derive(assign=0)
-            eq = x.derive(assign=1)
+            eq = x.derive() << 0
+            eq = x.derive() << 1
 
 
 @mark.xfail
