@@ -30,8 +30,8 @@ class Node:
         raise NotImplementedError
 
     def __set_name__(self, cls: Node, name: str):
-        self.name = name
-        self.parent = cls
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "parent", cls)
 
     def __set__(self, obj: Node, value: Self):
         if not isinstance(value, self.__class__):
@@ -85,3 +85,15 @@ class Node:
             if recursive and isinstance(v, Node):
                 v: Node = getattr(self, k)
                 yield from v._yield(type, recursive=recursive)
+
+
+class NodeMapper:
+    def __init__(self, obj: Node):
+        self.obj = obj
+        self.cls = obj.__class__
+
+    def get(self, item: T, default: T | None = None) -> T:
+        if isinstance(item, Node) and item.parent is self.cls:
+            return item.__get__(self.obj, self.cls)
+        else:
+            return item
