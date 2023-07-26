@@ -7,80 +7,17 @@ from typing import get_type_hints as get_annotations
 from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform, overload
 
+from ._node import Node, NodeMapper
+
 T = TypeVar("T")
 
 
-class Owned:
-    """Owned objects are descriptors with a name and a parent.
-
-    Setting an instance attribute (__set__),
-    sets that instance as the parent of that attribute,
-    if it did not have a previous parent set.
-    Hence, it must be an Owned subclass.
-
-    Attribute access from an instance
-    tries to return the object in the instance's __dict__.
-    Otherwise, it creates a copy with self._copy_from,
-    assigns the instance as its parent
-    and saves is in the instance's __dict__.
-    Hence, Owned subclasses must implement self._copy_from.
-    """
-
-    name: str = ""
-    parent: System | type[System] | None = None
-
-    def _copy_from(self, parent: System) -> Self:
-        raise NotImplementedError
-
-    def __set_name__(self, cls: type[System], name: str):
-        object.__setattr__(self, "name", name)
-        object.__setattr__(self, "parent", cls)
-
-    def __set__(self, obj: System, value: Self):
-        if not isinstance(value, self.__class__):
-            raise TypeError(f"unexpected type {type(value)} for {self.name}")
-
-        if value.parent is None and value.name == "":
-            # if it has no name, it was created outside an EagerNamer
-            value.__set_name__(obj, self.name)
-
-        obj.__dict__[self.name] = value
-
-    def __get__(self, parent: System | None, cls: type[System]) -> Self:
-        if parent is None:
-            return self
-
-        try:
-            return parent.__dict__[self.name]
-        except KeyError:
-            copy = self._copy_from(parent)
-            copy.__set_name__(parent, self.name)
-            parent.__dict__[self.name] = copy
-            return copy
-
-    def __str__(self) -> str:
-        # This is a recursive method, as self.parent is Owned | None
-        return f"{self.parent}.{self.name}"
-
-    def __repr__(self):
-        return str(self)
-
-    def __hash__(self) -> int:
-        return hash(self.name)
-
-    def __eq__(self, other):
-        if other.__class__ is not self.__class__:
-            return NotImplemented
-
-        return str(self) == str(other)
-
-
-class Constant(Owned, Scalar):
+class Constant(Node, Scalar):
     def __init__(self, *, default: Initial):
         self.default = default
 
     def _copy_from(self, parent: System):
-        return self.__class__(default=ClsMapper(parent).get(self.default))
+        return self.__class__(default=NodeMapper(parent).get(self.default))
 
     def __eq__(self, other: Self):
         if other.__class__ is not self.__class__:
@@ -104,42 +41,6 @@ class Constant(Owned, Scalar):
 
 Number = int | float | complex
 Initial = Number | Constant
-
-
-class ClsMapper(dict):
-    def __init__(self, obj: System):
-        self.obj = obj
-        self.cls = obj.__class__
-
-    def get(self, item: T, default: T | None = None) -> T:
-        if default is None:
-            default = item
-
-        if isinstance(item, Derivative) and item.variable.parent is self.cls:
-            variable = getattr(self.obj, item.variable.name)
-            return Derivative(variable, order=item.order)
-        elif isinstance(item, Owned) and item.parent is self.cls:
-            return getattr(self.obj, item.name)
-        else:
-            return item
-
-        # Recursively look all parents
-        # If an item's parent is cls,
-        #   replace that item for the instance's corresponding item.
-        #   go down the name list to fetch the original item, adn return that
-        # else return the original item as is.
-        default = item
-        names = []
-        while item.parent is not None:
-            names.append(item.name)
-            item = item.parent
-            if item is self.cls:
-                item = self.obj
-                for name in reversed(names):
-                    item = getattr(item, name)
-                return item
-        else:
-            return default
 
 
 def derive(
@@ -217,14 +118,14 @@ def _assign_equation_order(
         variable.equation_order = order
 
 
-class Parameter(Owned, Scalar):
+class Parameter(Node, Scalar):
     equation_order: int = 0
 
     def __init__(self, *, default: Initial | Symbol):
         self.default = default
 
     def _copy_from(self, parent: System):
-        return self.__class__(default=ClsMapper(parent).get(self.default))
+        return self.__class__(default=NodeMapper(parent).get(self.default))
 
     def derive(self, order: int = 1):
         return derive(variable=self, order=1, initial=None, assign=None)
@@ -266,7 +167,7 @@ class Variable(Parameter):
 
     def _copy_from(self, parent: System):
         copy = self.__class__(
-            initial=ClsMapper(parent).get(self.initial)
+            initial=NodeMapper(parent).get(self.initial)
         )  # should initial be here or in maps[1]?
         copy.derivatives.maps[1] = self.derivatives
         copy.equation_order = self.equation_order
@@ -429,7 +330,7 @@ class Derivative(Symbol):
         return f"D({self.variable.name}, {self.order})"
 
 
-class Equation(Owned):
+class Equation(Node):
     def __init__(self, lhs: Derivative, rhs: Initial | Symbol):
         self.lhs = lhs
         self.rhs = rhs
@@ -438,7 +339,7 @@ class Equation(Owned):
     def _copy_from(self, parent: System):
         variable = getattr(parent, self.lhs.variable.name)
         if isinstance(self.rhs, Symbol):
-            rhs = self.rhs.subs(ClsMapper(parent))
+            rhs = self.rhs.subs(NodeMapper(parent))
         else:
             rhs = self.rhs
         return self.__class__(Derivative(variable, order=self.lhs.order), rhs)
@@ -470,7 +371,7 @@ def initial(*, default: Initial) -> Variable:
 
 class OwnedNamerDict(dict):
     def __setitem__(self, key, value):
-        if isinstance(value, Owned):
+        if isinstance(value, Node):
             value.__set_name__(None, key)
         return super().__setitem__(key, value)
 
@@ -491,7 +392,7 @@ class EagerNamer(type):
         assign,
     ),
 )
-class System(Owned, metaclass=EagerNamer):
+class System(Node, metaclass=EagerNamer):
     _kwargs: dict
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
 
@@ -542,7 +443,7 @@ class System(Owned, metaclass=EagerNamer):
         # Create a new instance by replacing previous arguments,
         # which were saved in self._kwargs,
         # with the ones from the corresponding instance
-        mapper = ClsMapper(parent)
+        mapper = NodeMapper(parent)
         kwargs = {k: mapper.get(v, v) for k, v in self._kwargs.items()}
         return self.__class__(**kwargs)
 
