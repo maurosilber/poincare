@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Iterator, Self, Sequence
 
 from poincare import Constant, Parameter, Variable
-from poincare.types import Equation, Node, System
+from poincare.types import Equation, EquationGroup, Node, System
 from symbolite import Symbol
 from symbolite.abstract.symbol import BinaryFunction
 
@@ -46,11 +46,10 @@ class Species(Node):
         return cls(variable=species, stoichiometry=stoichiometry)
 
 
-class Reaction(Node):
+class Reaction(EquationGroup):
     reactants: Sequence[Species]
     products: Sequence[Species]
     rate_law: Callable
-    equations: list[Equation]
 
     def __init__(
         self,
