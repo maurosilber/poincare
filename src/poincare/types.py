@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import ClassVar, Iterator, Literal, TypeVar
+from typing import ClassVar, Iterator, Literal, Sequence, TypeVar
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar, Symbol
@@ -290,6 +290,16 @@ class Equation(Node):
         return f"Equation({self.lhs} << {self.rhs})"
 
 
+class EquationGroup(Node):
+    equations: Sequence[Equation]
+
+    def __init__(self, *equations: Equation):
+        self.equations = equations
+
+    def _copy_from(self, parent: System):
+        return self.__class__(*(eq._copy_from(parent) for eq in self.equations))
+
+
 @overload
 def assign(*, default: Initial | Symbol, constant: Literal[False] = False) -> Parameter:
     ...
@@ -429,15 +439,11 @@ class System(Node, metaclass=EagerNamer):
         else:
             cls = self
 
-        for k, v in cls.__dict__.items():
+        for k in cls.__dict__.keys():
+            v = getattr(self, k)
             if isinstance(v, Equation):
-                yield getattr(self, k)
+                yield v
+            elif isinstance(v, EquationGroup):
+                yield from v.equations
             elif isinstance(v, System):
-                v: System = getattr(self, k)
                 yield from v.yield_equations()
-            else:
-                v = getattr(self, k)
-                try:
-                    yield from v.yield_equations()
-                except (AttributeError, TypeError):
-                    pass
