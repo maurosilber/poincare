@@ -49,19 +49,19 @@ class Species(Node):
 class Reaction(EquationGroup):
     reactants: Sequence[Species]
     products: Sequence[Species]
-    rate_law: Callable
+    rate_law: Callable | Symbol
 
     def __init__(
         self,
         *,
         reactants: Sequence[Symbol] = (),
         products: Sequence[Symbol] = (),
-        rate_law: Callable,
+        rate_law: Callable | Symbol,
     ):
         self.reactants = [Species.from_symbol(r) for r in reactants]
         self.products = [Species.from_symbol(p) for p in products]
         self.rate_law = rate_law
-        self.equations = list(self.yield_equations())
+        self.equations = tuple(self.yield_equations())
 
     def _copy_from(self, parent: System):
         return self.__class__(
@@ -77,7 +77,10 @@ class Reaction(EquationGroup):
         )
 
     def yield_equations(self) -> Iterator[Equation]:
-        rate = self.rate_law(*self.reactants)
+        if callable(self.rate_law):
+            rate = self.rate_law(*self.reactants)
+        else:
+            rate = self.rate_law
         species_stoich: dict[Variable, float] = defaultdict(float)
         for r in self.reactants:
             species_stoich[r.variable] -= r.stoichiometry
@@ -99,7 +102,7 @@ class MassAction(Reaction):
         self.reactants = [Species.from_symbol(r) for r in reactants]
         self.products = [Species.from_symbol(p) for p in products]
         self.rate = rate
-        self.equations = list(self.yield_equations())
+        self.equations = tuple(self.yield_equations())
 
     def rate_law(self, *reactants: Species):
         rate = self.rate
