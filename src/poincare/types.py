@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import ClassVar, Iterator, Literal, Sequence, TypeVar
+from typing import ClassVar, Iterator, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar, Symbol
-from typing_extensions import Self, dataclass_transform, overload
+from typing_extensions import Self, dataclass_transform
 
 from ._node import Node, NodeMapper
 
