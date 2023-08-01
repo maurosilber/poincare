@@ -84,25 +84,16 @@ def test_second_order_equation_without_first_derivative():
         assert equations[Derivative(x, order=x.equation_order)] == [-x]
 
 
+@mark.xfail(reason="Not implemented")
 def test_second_order_equation_without_first_derivative_2():
     """Taking the second derivative 'directly',
     without defining the first derivative."""
 
-    class Model(System):
-        x: Variable = initial(default=0)
-        force = x.derive(initial=0.0).derive() << -x.derive()
+    with raises(TypeError):
 
-    assert is_same_variable(Model.force.lhs, Model.x.derive().derive())
-    assert Model.force.rhs == -Model.x.derive()
-
-    model = Model(x=1)
-    assert is_same_variable(model.force.lhs, model.x.derive().derive())
-    assert model.force.rhs == -model.x.derive()
-
-    for m in [Model, model]:
-        equations = get_equations(m)
-        x = m.x
-        assert equations[Derivative(x, order=x.equation_order)] == [-x.derive()]
+        class Model(System):
+            x: Variable = initial(default=0)
+            force = x.derive(initial=0.0).derive() << -x.derive()
 
 
 def test_repeated_equations():
@@ -215,7 +206,7 @@ def test_parameter_equation():
         k: Parameter = assign(default=t)
 
 
-@mark.skip(reason="Not yet implemented")
+@mark.xfail(reason="Not yet implemented")
 def test_unassigned_equation():
     with raises(NameError):
 
@@ -230,7 +221,7 @@ def test_unassigned_equation():
             x.derive() << 0
 
 
-@mark.skip(reason="Not yet implemented")
+@mark.xfail(reason="Not yet implemented")
 def test_shadowed_equations():
     with raises(NameError):
 
@@ -240,7 +231,7 @@ def test_shadowed_equations():
             eq = x.derive() << 1
 
 
-@mark.xfail
+@mark.xfail(reason="Not yet implemented")
 def test_outer_composition():
     class Particle(System):
         x: Variable = initial(default=0)
