@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Iterator, Self, TypeVar
+from typing import Iterator, TypeVar
+
+from typing_extensions import Self
 
 from ._utils import class_and_instance_method
 
