@@ -1,1 +1,2 @@
+symbolite >= 0.4
 typing_extensions
