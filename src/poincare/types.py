@@ -333,6 +333,9 @@ class EagerNamer(type):
     def __prepare__(cls, name, bases):
         return OwnedNamerDict()
 
+    def __str__(self):
+        return ""
+
     def __repr__(self):
         return f"<{self.__name__}>"
 
@@ -350,7 +353,7 @@ class System(Node, metaclass=EagerNamer):
 
     def __str__(self) -> str:
         if self.parent is None:
-            return getattr(self, "name", "Root")
+            return self.name
         return f"{self.parent}.{self.name}"
 
     def __init_subclass__(cls) -> None:
