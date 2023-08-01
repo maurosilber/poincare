@@ -72,19 +72,29 @@ class Node:
         return str(self) == str(other)
 
     @class_and_instance_method
-    def _yield(self, type: type[T], *, recursive: bool = True) -> Iterator[T]:
+    def _yield(
+        self,
+        type: type[T],
+        /,
+        *,
+        exclude: type | None = None,
+        recursive: bool = True,
+    ) -> Iterator[T]:
         if isinstance(self, Node):
             cls = self.__class__
         else:
             cls = self
 
+        if exclude is None:
+            exclude = ()  # type: ignore
+
         for k, v in cls.__dict__.items():
-            if isinstance(v, type):
+            if isinstance(v, type) and not isinstance(v, exclude):
                 yield getattr(self, k)
 
             if recursive and isinstance(v, Node):
                 v: Node = getattr(self, k)
-                yield from v._yield(type, recursive=recursive)
+                yield from v._yield(type, exclude=exclude, recursive=recursive)
 
 
 class NodeMapper:
