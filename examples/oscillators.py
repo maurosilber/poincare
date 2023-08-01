@@ -1,4 +1,7 @@
+import matplotlib.pyplot as plt
+import numpy as np
 from poincare import Derivative, Parameter, System, Variable, assign, initial
+from poincare.simulator import Simulator
 
 
 class Oscillator(System):
@@ -19,12 +22,18 @@ class Dampening(System):
     dampening = vx.derive() << -damp_rate * vx
 
 
-class DampedOscilator(System):
-    x: Variable = initial(default=0)
+class DampedOscillator(System):
+    x: Variable = initial(default=1)
     vx: Derivative = x.derive(initial=0)
 
-    spring_constant: Parameter = assign(default=0)
-    damp_rate: Parameter = assign(default=0)
+    spring_constant: Parameter = assign(default=1)
+    damp_rate: Parameter = assign(default=0.1)
 
-    osillator = Oscillator(x=x, spring_constant=spring_constant)
+    oscillator = Oscillator(x=x, spring_constant=spring_constant)
     dampening = Dampening(x=x, damp_rate=damp_rate)
+
+
+sim = Simulator(DampedOscillator)
+result = sim.solve(times=np.linspace(0, 50, 1000))
+result.plot()
+plt.show()
