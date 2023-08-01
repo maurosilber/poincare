@@ -27,14 +27,6 @@ class Backend(enum.Enum):
     FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = 2
 
 
-def debug_print(d):
-    print(f"--- {len(d)} elements ---")
-    for k, v in d.items():
-        print("key", str(k))
-        print("value", str(v))
-    print("-----------")
-
-
 def eqsum(eqs: list[RHS]) -> scalar.NumberT | Symbol:
     if len(eqs) == 0:
         return 0
