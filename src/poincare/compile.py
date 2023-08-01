@@ -53,25 +53,15 @@ def ode_vectorize(
 
 
 def get_equations(system: System | type[System]) -> dict[Derivative, list[RHS]]:
-    if isinstance(system, System):
-        eqs = system.yield_equations()
-    else:
-        eqs = system.yield_equations(system)
-
     equations: dict[Derivative, list[RHS]] = defaultdict(list)
-    for eq in eqs:
+    for eq in system.yield_equations():
         equations[eq.lhs].append(eq.rhs)
     return equations
 
 
 def get_initial_values(system: System | type[System]) -> dict[Derivative, Initial]:
-    if isinstance(system, System):
-        vars = system.yield_variables()
-    else:
-        vars = system.yield_variables(system)
-
     initial_values: dict[Derivative, Initial] = {}
-    for var in vars:
+    for var in system.yield_variables():
         for order, initial_value in var.derivatives.items():
             initial_values[Derivative(var, order=order)] = initial_value
     return initial_values

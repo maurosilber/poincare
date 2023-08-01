@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import UnionType
 from typing import Iterator, TypeVar
 
 from typing_extensions import Self
@@ -76,19 +77,16 @@ class Node:
     @class_and_instance_method
     def _yield(
         self,
-        type: type[T],
+        type: type[T] | UnionType | tuple[type[T], ...],
         /,
         *,
-        exclude: type | None = None,
+        exclude: type | UnionType | tuple[type, ...] = (),
         recursive: bool = True,
     ) -> Iterator[T]:
         if isinstance(self, Node):
             cls = self.__class__
         else:
             cls = self
-
-        if exclude is None:
-            exclude = ()  # type: ignore
 
         for k, v in cls.__dict__.items():
             if isinstance(v, type) and not isinstance(v, exclude):

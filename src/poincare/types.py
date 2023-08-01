@@ -8,6 +8,7 @@ from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform
 
 from ._node import Node, NodeMapper
+from ._utils import class_and_instance_method
 
 T = TypeVar("T")
 
@@ -419,34 +420,14 @@ class System(Node, metaclass=EagerNamer):
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
 
-    def yield_variables(
-        self: Self | type[Self],
-        recursive: bool = True,
-    ) -> Iterator[Variable]:
-        if isinstance(self, System):
-            cls = self.__class__
-        else:
-            cls = self
+    @class_and_instance_method
+    def yield_variables(self, *, recursive: bool = True):
+        return self._yield(Variable, recursive=recursive)
 
-        for k, v in cls.__dict__.items():
-            if isinstance(v, System):
-                if recursive is True:
-                    v: System = getattr(self, k)
-                    yield from v.yield_variables(recursive=recursive)
-            elif isinstance(v, Variable):
-                yield getattr(self, k)
-
-    def yield_equations(self: Self | type[Self]) -> Iterator[Equation]:
-        if isinstance(self, System):
-            cls = self.__class__
-        else:
-            cls = self
-
-        for k in cls.__dict__.keys():
-            v = getattr(self, k)
+    @class_and_instance_method
+    def yield_equations(self, *, recurisve: bool = True) -> Iterator[Equation]:
+        for v in self._yield(Equation | EquationGroup, recursive=recurisve):
             if isinstance(v, Equation):
                 yield v
             elif isinstance(v, EquationGroup):
                 yield from v.equations
-            elif isinstance(v, System):
-                yield from v.yield_equations()
