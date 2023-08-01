@@ -53,15 +53,27 @@ class Simulator:
         self.model = system
 
         (
-            self._variable_names,
-            self._parameter_names,
+            _variable_names,
+            _parameter_names,
             self._init_func,
             self._ode_func,
             self._param_func,
         ) = compile.compile(system, backend)
 
-        self._parameter_names = [n.removeprefix(".") for n in self._parameter_names]
-        self._variable_names = [n.removeprefix(".") for n in self._variable_names]
+        def _name_to_object(system, name: str):
+            for name in name[1:].split("."):
+                if name.isdecimal():
+                    system = Derivative(system, order=int(name))
+                else:
+                    system = getattr(system, name)
+            return system
+
+        self._parameter_map = {
+            _name_to_object(system, n): n.removeprefix(".") for n in _parameter_names
+        }
+        self._variable_map = {
+            _name_to_object(system, n): n.removeprefix(".") for n in _variable_names
+        }
 
         self._defaults = {}
         for v in system._yield(Constant | Parameter):
@@ -76,8 +88,16 @@ class Simulator:
         t_span: tuple[float, float],
     ):
         values = self._resolve_initials(values)
-        y0 = np.zeros(len(self.variables))
-        p0 = np.array(list(self.parameters.values()))
+        y0 = np.fromiter(
+            (values[k] for k in self._variable_map),
+            dtype=float,
+            count=len(self._variable_map),
+        )
+        p0 = np.fromiter(
+            (values[k] for k in self._parameter_map),
+            dtype=float,
+            count=len(self._parameter_map),
+        )
         return Problem(self._ode_func, t_span, y0, p0)
 
     def solve(self, problem: Problem, *, times: NDArray):
@@ -92,7 +112,7 @@ class Simulator:
 
         dy = np.empty_like(problem.y)
         result = odeint(func, problem.y, times, args=(problem.p, dy))
-        return pd.DataFrame(result, columns=self._variable_names, index=times)
+        return pd.DataFrame(result, columns=self._variable_map.values(), index=times)
 
     def _resolve_initials(
         self,
