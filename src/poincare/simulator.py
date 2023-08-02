@@ -117,7 +117,11 @@ class Simulator:
             args=(problem.p, dy),
             tfirst=True,
         )
-        return pd.DataFrame(result, columns=self._variable_map.values(), index=times)
+        return pd.DataFrame(
+            result,
+            columns=self._variable_map.values(),
+            index=pd.Series(times, name="time"),
+        )
 
     def _resolve_initials(
         self,
