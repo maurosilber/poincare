@@ -1,4 +1,5 @@
 pytest
+pytest-readme
 matplotlib
 numba
 jax
