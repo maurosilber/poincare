@@ -29,6 +29,7 @@ class Backend(enum.Enum):
     FIRST_ORDER_VECTORIZED_STD = enum.auto()
     FIRST_ORDER_VECTORIZED_NUMPY = enum.auto()
     FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = enum.auto()
+    FIRST_ORDER_VECTORIZED_JAX = enum.auto()
 
 
 def eqsum(eqs: list[RHS]) -> scalar.NumberT | Symbol:
@@ -244,7 +245,19 @@ def build_first_order_symbolic_ode(
     )
 
 
-def build_first_order_vectorized_body(system: System | type[System]) -> Compiled[str]:
+def assignment(name: str, index: str, value: str) -> str:
+    return f"{name}[{index}] = {value}"
+
+
+def jax_assignment(name: str, index: str, value: str) -> str:
+    return f"{name} = {name}.at[{index}].set({value})"
+
+
+def build_first_order_vectorized_body(
+    system: System | type[System],
+    *,
+    assignment_func=assignment,
+) -> Compiled[str]:
     ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(
         system
     )
@@ -256,17 +269,28 @@ def build_first_order_vectorized_body(system: System | type[System]) -> Compiled
     aeqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in aeqs.items()}
     deqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in deqs.items()}
 
-    def slhs(k: str, name: str) -> str:
-        if k in state_names:
-            return f"{name}[{state_names.index(k)}]"
-        if k in param_names:
-            return f"p[{param_names.index(k)}]"
-        return f"Unknown variable <{k}>"
+    def to_index(k: str) -> str:
+        try:
+            return str(state_names.index(k))
+        except ValueError:
+            pass
+
+        try:
+            return str(param_names.index(k))
+        except ValueError:
+            pass
+
         raise ValueError(k)
 
-    initial_body = [f"{slhs(k, 'y0')} = {str(eq)}" for k, eq in ivs.items()]
-    update_param_body = [f"{slhs(k, 'p')} = {str(eq)}" for k, eq in aeqs.items()]
-    ode_step_body = [f"{slhs(k, 'ydot')} = {str(eq)}" for k, eq in deqs.items()]
+    initial_body = [
+        assignment_func("y0", to_index(k), str(eq)) for k, eq in ivs.items()
+    ]
+    update_param_body = [
+        assignment_func("p", to_index(k), str(eq)) for k, eq in aeqs.items()
+    ]
+    ode_step_body = [
+        assignment_func("ydot", to_index(k), str(eq)) for k, eq in deqs.items()
+    ]
 
     initial_def = "\n    ".join(
         [
@@ -306,8 +330,11 @@ def build_first_order_functions(
     system: System | type[System],
     libsl: ModuleType,
     optimizer: Callable[[FunctionT], FunctionT] = identity,
+    assignment_func=assignment,
 ) -> Compiled[FunctionT]:
-    vectorized = build_first_order_vectorized_body(system)
+    vectorized = build_first_order_vectorized_body(
+        system, assignment_func=assignment_func
+    )
 
     lm = symbolite_compile(
         "\n".join(
@@ -356,6 +383,13 @@ def compile(
             from symbolite.impl import libnumpy
 
             return build_first_order_functions(system, libnumpy, numba.njit)
+        case Backend.FIRST_ORDER_VECTORIZED_JAX:
+            import jax
+            from symbolite.impl import libjax
+
+            return build_first_order_functions(
+                system, libjax, jax.jit, assignment_func=jax_assignment
+            )
         case _:
             assert_never(backend, message="Unknown backend {}")
 
