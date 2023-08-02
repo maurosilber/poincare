@@ -2,4 +2,4 @@ pytest
 pytest-readme
 matplotlib
 numba
-jax
+jax[cpu]
