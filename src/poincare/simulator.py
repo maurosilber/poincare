@@ -115,7 +115,7 @@ class Simulator:
         problem = self.create_problem(values, t_span=t_span)
 
         def func(y, t, p, dy):
-            self._ode_func(t, y, p, dy)
+            problem.rhs(t, y, p, dy)
             return dy
 
         dy = np.empty_like(problem.y)
