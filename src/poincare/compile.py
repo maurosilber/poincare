@@ -264,28 +264,33 @@ def build_first_order_vectorized_body(system: System | type[System]) -> Compiled
         return f"Unknown variable <{k}>"
         raise ValueError(k)
 
-    tab = " " * 4
+    initial_body = [f"{slhs(k, 'y0')} = {str(eq)}" for k, eq in ivs.items()]
+    update_param_body = [f"{slhs(k, 'p')} = {str(eq)}" for k, eq in aeqs.items()]
+    ode_step_body = [f"{slhs(k, 'ydot')} = {str(eq)}" for k, eq in deqs.items()]
 
-    initial_body = "\n".join(
-        f"{tab}{slhs(k, 'y0')} = {str(eq)}" for k, eq in ivs.items()
-    )
-    initial_def = f"def init(t, p, y0):\n{initial_body}\n{tab}return y0" ""
-
-    update_param_body = "\n".join(
-        f"{tab}{slhs(k, 'p')} = {str(eq)}" for k, eq in aeqs.items()
-    )
-
-    ode_step_body = "\n".join(
-        f"{tab}{slhs(k, 'ydot')} = {str(eq)}" for k, eq in deqs.items()
+    initial_def = "\n    ".join(
+        [
+            "def init(t, p, y0):",
+            *initial_body,
+            "return y0",
+        ]
     )
 
-    update_param_def = (
-        f"def update_param(t, y, p0, p):\n{update_param_body}\n{tab}return p" ""
+    update_param_def = "\n    ".join(
+        [
+            "def update_param(t, y, p0, p):",
+            *update_param_body,
+            "return p",
+        ]
     )
 
-    ode_step_def = (
-        f"def ode_step(t, y, p, ydot):\n{update_param_body}\n{ode_step_body}\n{tab}return ydot"
-        ""
+    ode_step_def = "\n    ".join(
+        [
+            "def ode_step(t, y, p, ydot):",
+            *update_param_body,
+            *ode_step_body,
+            "return ydot",
+        ]
     )
 
     return Compiled(
