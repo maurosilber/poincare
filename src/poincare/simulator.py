@@ -14,7 +14,7 @@ from .types import Initial, Number
 
 
 class RHS(Protocol):
-    def __call__(self, t: float, y: NDArray, p: NDArray, dy: NDArray):
+    def __call__(self, t: float, y: NDArray, p: NDArray, dy: NDArray) -> NDArray:
         ...
 
 
@@ -51,14 +51,7 @@ class Simulator:
         backend=compile.Backend.FIRST_ORDER_VECTORIZED_NUMPY,
     ):
         self.model = system
-
-        (
-            _variable_names,
-            _parameter_names,
-            self._init_func,
-            self._ode_func,
-            self._param_func,
-        ) = compile.compile(system, backend)
+        self.compiled = compile.compile(system, backend)
 
         def _name_to_object(system, name: str):
             for name in name[1:].split("."):
@@ -69,10 +62,12 @@ class Simulator:
             return system
 
         self._parameter_map = {
-            _name_to_object(system, n): n.removeprefix(".") for n in _parameter_names
+            _name_to_object(system, n): n.removeprefix(".")
+            for n in self.compiled.parameter_names
         }
         self._variable_map = {
-            _name_to_object(system, n): n.removeprefix(".") for n in _variable_names
+            _name_to_object(system, n): n.removeprefix(".")
+            for n in self.compiled.variable_names
         }
 
         self._defaults = {}
@@ -98,7 +93,7 @@ class Simulator:
             dtype=float,
             count=len(self._parameter_map),
         )
-        return Problem(self._ode_func, t_span, y0, p0)
+        return Problem(self.compiled.ode_func, t_span, y0, p0)
 
     def solve(
         self,

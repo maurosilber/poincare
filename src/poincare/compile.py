@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 from collections import defaultdict
 from collections.abc import MutableSequence, Sequence
@@ -18,7 +20,7 @@ FunctionT = Callable[
 ]
 
 
-def _noop(fn: FunctionT) -> FunctionT:
+def identity(fn: FunctionT) -> FunctionT:
     return fn
 
 
@@ -118,7 +120,7 @@ class ToSimpleScalar(dict[Any, Any]):
 
 
 def build_first_order_symbolic_ode(
-    system: System,
+    system: System | type[System],
 ) -> tuple[
     dict[SimpleVariable, scalar.NumberT | Symbol],
     dict[SimpleVariable, scalar.NumberT | Symbol],
@@ -242,7 +244,7 @@ def build_first_order_symbolic_ode(
 
 
 def build_first_order_vectorized_body(
-    system: System,
+    system: System | type[System],
 ) -> tuple[tuple[str, ...], tuple[str, ...], str, str, str]:
     ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(
         system
@@ -291,15 +293,10 @@ def build_first_order_vectorized_body(
 
 
 def build_first_order_functions(
-    system: System,
+    system: System | type[System],
     libsl: ModuleType,
-    optimizer: Callable[
-        [
-            FunctionT,
-        ],
-        FunctionT,
-    ] = _noop,
-) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
+    optimizer: Callable[[FunctionT], FunctionT] = identity,
+) -> Compiled:
     (
         state_names,
         param_names,
@@ -312,7 +309,7 @@ def build_first_order_functions(
         initial_def + "\n" + ode_step_def + "\n" + update_param_def + "\n", libsl
     )
 
-    return (
+    return Compiled(
         state_names,
         param_names,
         optimizer(lm["init"]),
@@ -321,10 +318,19 @@ def build_first_order_functions(
     )
 
 
+@dataclass(frozen=True)
+class Compiled:
+    variable_names: tuple[str]
+    parameter_names: tuple[str]
+    init_func: FunctionT
+    ode_func: FunctionT
+    param_func: FunctionT
+
+
 def compile(
-    system: System,
+    system: System | type[System],
     backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA,
-) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
+) -> Compiled:
     match backend:
         case Backend.FIRST_ORDER_VECTORIZED_STD:
             from symbolite.impl import libstd
