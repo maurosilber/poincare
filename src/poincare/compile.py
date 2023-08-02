@@ -11,7 +11,7 @@ from symbolite.core import substitute
 
 from .types import Constant, Derivative, Initial, Parameter, System, Variable
 
-RHS: TypeAlias = Initial | Variable
+RHS: TypeAlias = Initial | Symbol
 FunctionT = Callable[
     [float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]
 ]
