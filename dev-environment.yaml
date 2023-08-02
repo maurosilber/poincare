@@ -6,6 +6,10 @@ dependencies:
   - pre-commit
   - pytest
   - tox-conda
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
   - pip
   - pip:
     - symbolite
