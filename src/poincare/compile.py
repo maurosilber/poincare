@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Callable, TypeAlias
+from typing import Any, Callable, Generic, TypeAlias, TypeVar
 
 from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
@@ -14,6 +14,7 @@ from typing_extensions import Never
 
 from .types import Constant, Derivative, Initial, Parameter, System, Variable
 
+T = TypeVar("T")
 RHS: TypeAlias = Initial | Symbol
 FunctionT = Callable[
     [float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]
@@ -243,9 +244,7 @@ def build_first_order_symbolic_ode(
     )
 
 
-def build_first_order_vectorized_body(
-    system: System | type[System],
-) -> tuple[tuple[str, ...], tuple[str, ...], str, str, str]:
+def build_first_order_vectorized_body(system: System | type[System]) -> Compiled[str]:
     ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(
         system
     )
@@ -289,29 +288,36 @@ def build_first_order_vectorized_body(
         ""
     )
 
-    return state_names, param_names, initial_def, ode_step_def, update_param_def
+    return Compiled(
+        state_names,
+        param_names,
+        initial_def,
+        ode_step_def,
+        update_param_def,
+    )
 
 
 def build_first_order_functions(
     system: System | type[System],
     libsl: ModuleType,
     optimizer: Callable[[FunctionT], FunctionT] = identity,
-) -> Compiled:
-    (
-        state_names,
-        param_names,
-        initial_def,
-        ode_step_def,
-        update_param_def,
-    ) = build_first_order_vectorized_body(system)
+) -> Compiled[FunctionT]:
+    vectorized = build_first_order_vectorized_body(system)
 
     lm = symbolite_compile(
-        initial_def + "\n" + ode_step_def + "\n" + update_param_def + "\n", libsl
+        "\n".join(
+            [
+                vectorized.init_func,
+                vectorized.ode_func,
+                vectorized.param_func,
+            ]
+        ),
+        libsl,
     )
 
     return Compiled(
-        state_names,
-        param_names,
+        vectorized.variable_names,
+        vectorized.parameter_names,
         optimizer(lm["init"]),
         optimizer(lm["ode_step"]),
         optimizer(lm["update_param"]),
@@ -319,18 +325,18 @@ def build_first_order_functions(
 
 
 @dataclass(frozen=True)
-class Compiled:
+class Compiled(Generic[T]):
     variable_names: tuple[str]
     parameter_names: tuple[str]
-    init_func: FunctionT
-    ode_func: FunctionT
-    param_func: FunctionT
+    init_func: T
+    ode_func: T
+    param_func: T
 
 
 def compile(
     system: System | type[System],
     backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA,
-) -> Compiled:
+) -> Compiled[FunctionT]:
     match backend:
         case Backend.FIRST_ORDER_VECTORIZED_STD:
             from symbolite.impl import libstd
