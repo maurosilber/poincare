@@ -8,6 +8,7 @@ from typing import Any, Callable, TypeAlias
 from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
 from symbolite.core import substitute
+from typing_extensions import Never
 
 from .types import Constant, Derivative, Initial, Parameter, System, Variable
 
@@ -22,9 +23,9 @@ def _noop(fn: FunctionT) -> FunctionT:
 
 
 class Backend(enum.Enum):
-    FIRST_ORDER_VECTORIZED_STD = 0
-    FIRST_ORDER_VECTORIZED_NUMPY = 1
-    FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = 2
+    FIRST_ORDER_VECTORIZED_STD = enum.auto()
+    FIRST_ORDER_VECTORIZED_NUMPY = enum.auto()
+    FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = enum.auto()
 
 
 def eqsum(eqs: list[RHS]) -> scalar.NumberT | Symbol:
@@ -321,20 +322,26 @@ def build_first_order_functions(
 
 
 def compile(
-    system: System, backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA
+    system: System,
+    backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA,
 ) -> tuple[tuple[str, ...], tuple[str, ...], FunctionT, FunctionT, FunctionT]:
-    if backend is Backend.FIRST_ORDER_VECTORIZED_STD:
-        from symbolite.impl import libstd
+    match backend:
+        case Backend.FIRST_ORDER_VECTORIZED_STD:
+            from symbolite.impl import libstd
 
-        return build_first_order_functions(system, libstd)
-    elif backend is Backend.FIRST_ORDER_VECTORIZED_NUMPY:
-        from symbolite.impl import libnumpy
+            return build_first_order_functions(system, libstd)
+        case Backend.FIRST_ORDER_VECTORIZED_NUMPY:
+            from symbolite.impl import libnumpy
 
-        return build_first_order_functions(system, libnumpy)
-    elif backend is Backend.FIRST_ORDER_VECTORIZED_NUMPY:
-        import numba
-        from symbolite.impl import libnumpy
+            return build_first_order_functions(system, libnumpy)
+        case Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA:
+            import numba
+            from symbolite.impl import libnumpy
 
-        return build_first_order_functions(system, libnumpy, numba.njit)
-    else:
-        raise ValueError(f"Unknown backend {backend}")
+            return build_first_order_functions(system, libnumpy, numba.njit)
+        case _:
+            assert_never(backend, message="Unknown backend {}")
+
+
+def assert_never(arg: Never, *, message: str) -> Never:
+    raise ValueError(message.format(arg))
