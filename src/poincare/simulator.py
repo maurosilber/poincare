@@ -108,13 +108,14 @@ class Simulator:
             raise NotImplementedError("odeint only works from t=0")
 
         problem = self.create_problem(values, t_span=t_span)
-
-        def func(y, t, p, dy):
-            problem.rhs(t, y, p, dy)
-            return dy
-
         dy = np.empty_like(problem.y)
-        result = odeint(func, problem.y, times, args=(problem.p, dy))
+        result = odeint(
+            problem.rhs,
+            problem.y,
+            times,
+            args=(problem.p, dy),
+            tfirst=True,
+        )
         return pd.DataFrame(result, columns=self._variable_map.values(), index=times)
 
     def _resolve_initials(
