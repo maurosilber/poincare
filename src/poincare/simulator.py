@@ -9,7 +9,8 @@ import pandas as pd
 from numpy.typing import NDArray
 from symbolite import Symbol
 
-from . import Constant, Derivative, Parameter, System, Variable, compile
+from . import Constant, Derivative, Parameter, System, Variable
+from .compile import Backend, compile
 from .types import Initial, Number
 
 
@@ -48,10 +49,10 @@ class Simulator:
         system: System | type[System],
         /,
         *,
-        backend=compile.Backend.FIRST_ORDER_VECTORIZED_NUMPY,
+        backend=Backend.FIRST_ORDER_VECTORIZED_NUMPY,
     ):
         self.model = system
-        self.compiled = compile.compile(system, backend)
+        self.compiled = compile(system, backend)
 
         def _name_to_object(system, name: str):
             for name in name[1:].split("."):
