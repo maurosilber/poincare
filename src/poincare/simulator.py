@@ -85,7 +85,7 @@ class Simulator:
         self,
         values: dict[Constant | Parameter | Variable | Derivative, Initial] = {},
         *,
-        t_span: tuple[float, float],
+        t_span: tuple[float, float] = (0, np.inf),
     ):
         values = self._resolve_initials(values)
         y0 = np.fromiter(
@@ -100,11 +100,19 @@ class Simulator:
         )
         return Problem(self._ode_func, t_span, y0, p0)
 
-    def solve(self, problem: Problem, *, times: NDArray):
+    def solve(
+        self,
+        values: dict[Constant | Parameter | Variable | Derivative, Initial] = {},
+        *,
+        t_span: tuple[float, float] = (0, np.inf),
+        times: NDArray,
+    ):
         from scipy.integrate import odeint
 
-        if problem.t[0] != 0:
-            raise NotImplementedError
+        if t_span[0] != 0:
+            raise NotImplementedError("odeint only works from t=0")
+
+        problem = self.create_problem(values, t_span=t_span)
 
         def func(y, t, p, dy):
             self._ode_func(t, y, p, dy)
