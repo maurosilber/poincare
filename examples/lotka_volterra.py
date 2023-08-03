@@ -20,7 +20,8 @@ class LotkaVolterra(System):
     death_predator = predator.derive() << -predator_death_rate * predator
 
 
-sim = Simulator(LotkaVolterra)
-result = sim.solve(times=np.linspace(0, 100, 1000))
-result.plot()
-plt.show()
+if __name__ == "__main__":
+    sim = Simulator(LotkaVolterra)
+    result = sim.solve(times=np.linspace(0, 100, 1000))
+    result.plot()
+    plt.show()

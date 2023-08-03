@@ -33,7 +33,8 @@ class DampedOscillator(System):
     dampening = Dampening(x=x, damp_rate=damp_rate)
 
 
-sim = Simulator(DampedOscillator)
-result = sim.solve(times=np.linspace(0, 50, 1000))
-result.plot()
-plt.show()
+if __name__ == "__main__":
+    sim = Simulator(DampedOscillator)
+    result = sim.solve(times=np.linspace(0, 50, 1000))
+    result.plot()
+    plt.show()
