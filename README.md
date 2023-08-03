@@ -12,7 +12,9 @@ Poincaré allows to define and simulate dynamical systems in Python.
 ### Definition
 
 To define the system
+
 $$ \\frac{dx}{dt} = -x \\quad \\text{with} \\quad x(0) = 1 $$
+
 we write can:
 
 ```python
