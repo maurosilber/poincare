@@ -12,6 +12,7 @@ from ._utils import class_and_instance_method
 
 T = TypeVar("T")
 
+SimulationTime = Scalar("SimulationTime", namespace="poincare")
 
 class Constant(Node, Scalar):
     def __init__(self, *, default: Initial):
@@ -351,6 +352,8 @@ class EagerNamer(type):
 class System(Node, metaclass=EagerNamer):
     _kwargs: dict
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
+
+    simulation_time = SimulationTime
 
     def __str__(self) -> str:
         if self.parent is None:

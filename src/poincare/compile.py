@@ -237,6 +237,13 @@ def build_first_order_symbolic_ode(
     # TODO: add algebraic equations
     state_variables = tuple(deqs.keys())
 
+    # Replace Time
+    time_mapper = {System.simulation_time: SimpleParameter("t")}
+
+    ivs = {k: substitute(v, time_mapper) for k, v in ivs.items()}
+    aeqs = {k: substitute(v, time_mapper) for k, v in aeqs.items()}
+    deqs = {k: substitute(v, time_mapper) for k, v in deqs.items()}
+
     return (
         ivs,
         aeqs,
