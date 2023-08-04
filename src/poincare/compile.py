@@ -72,6 +72,19 @@ def get_initial_values(system: System | type[System]) -> dict[Derivative, Initia
     return initial_values
 
 
+def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
+    if not hasattr(value, "yield_named"):
+        return False
+    for named in value.yield_named():
+        if named is System.simulation_time:
+            return True
+        if isinstance(named, Derivative):
+            return True
+        elif isinstance(named, Variable):
+            return True
+    return False
+
+
 @dataclass(frozen=True)
 class SimpleVariable(scalar.Scalar):
     """Special type of Scalar that is evaluated to itself."""
@@ -189,18 +202,6 @@ def build_first_order_symbolic_ode(
     ivs: dict[SimpleVariable, Any] = {
         substitute(k, mapper): substitute(v, mapper) for k, v in initial_values.items()
     }
-
-    def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
-        if not hasattr(value, "yield_named"):
-            return False
-        for named in value.yield_named():
-            if isinstance(named, Derivative):
-                return True
-            elif isinstance(named, Variable):
-                return True
-            # if time:
-            #    return True
-        return False
 
     # Algebraic equations
     # Maps variable to equation.
