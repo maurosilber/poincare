@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import ChainMap
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, TypeAlias, Any
 
 import numpy as np
 import pandas as pd
@@ -10,21 +10,23 @@ from numpy.typing import NDArray
 from symbolite import Symbol
 
 from . import Constant, Derivative, Parameter, System, Variable
-from .compile import Backend, compile
+from .compile import Backend, compile, Compiled, FunctionT
 from .types import Initial, Number
 
 
+Array: TypeAlias = NDArray[np.float_]
+
 class RHS(Protocol):
-    def __call__(self, t: float, y: NDArray, p: NDArray, dy: NDArray) -> NDArray:
+    def __call__(self, t: float, y: Array, p: Array, dy: Array) -> Array:
         ...
 
 
 class Transform(Protocol):
-    def __call__(self, t: float, y: NDArray, p: NDArray) -> NDArray:
+    def __call__(self, t: float, y: Array, p: Array) -> Array:
         ...
 
 
-def identity(t, y, p):
+def identity(t: float, y: Array, p: Array) -> Array:
     return y
 
 
@@ -32,24 +34,28 @@ def identity(t, y, p):
 class Problem:
     rhs: RHS
     t: tuple[float, float]
-    y: NDArray
-    p: NDArray
+    y: Array
+    p: Array
     transform: Transform = identity
 
 
 @dataclass
 class Solution:
-    t: NDArray
-    y: NDArray
+    t: Array
+    y: Array
 
 
 class Simulator:
+
+    model = System | type[System]
+    compiled = Compiled[FunctionT]
+
     def __init__(
         self,
         system: System | type[System],
         /,
         *,
-        backend=Backend.FIRST_ORDER_VECTORIZED_NUMPY,
+        backend: Backend=Backend.FIRST_ORDER_VECTORIZED_NUMPY,
     ):
         self.model = system
         self.compiled = compile(system, backend)

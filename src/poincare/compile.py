@@ -338,7 +338,7 @@ def build_first_order_functions(
     system: System | type[System],
     libsl: ModuleType,
     optimizer: Callable[[FunctionT], FunctionT] = identity,
-    assignment_func=assignment,
+    assignment_func: Callable[[str, str, str], str]=assignment,
 ) -> Compiled[FunctionT]:
     vectorized = build_first_order_vectorized_body(
         system, assignment_func=assignment_func
@@ -366,8 +366,8 @@ def build_first_order_functions(
 
 @dataclass(frozen=True)
 class Compiled(Generic[T]):
-    variable_names: tuple[str]
-    parameter_names: tuple[str]
+    variable_names: tuple[str, ...]
+    parameter_names: tuple[str, ...]
     init_func: T
     ode_func: T
     param_func: T
