@@ -2,7 +2,7 @@
 
 from pytest import raises
 
-from ..types import Derivative, System, Variable, initial
+from ..types import Constant, Derivative, Parameter, System, Variable, assign, initial
 
 
 def test_empty_system():
@@ -20,6 +20,36 @@ def test_error_on_positional():
 
     with raises(TypeError, match="positional"):
         Model(1)  # type: ignore
+
+
+def test_required_variable():
+    class Model(System):
+        x: Variable = initial()
+
+    with raises(TypeError, match="missing"):
+        assert Model()  # type: ignore
+
+    assert Model(x=1).x.initial == 1
+
+
+def test_required_parameter():
+    class Model(System):
+        x: Parameter = assign()
+
+    with raises(TypeError, match="missing"):
+        assert Model()  # type: ignore
+
+    assert Model(x=1).x.default == 1
+
+
+def test_required_constant():
+    class Model(System):
+        x: Constant = assign(constant=True)
+
+    with raises(TypeError, match="missing"):
+        assert Model()  # type: ignore
+
+    assert Model(x=1).x.default == 1
 
 
 def test_default_variable():

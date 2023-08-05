@@ -14,8 +14,9 @@ T = TypeVar("T")
 
 SimulationTime = Scalar("SimulationTime", namespace="poincare")
 
+
 class Constant(Node, Scalar):
-    def __init__(self, *, default: Initial):
+    def __init__(self, *, default: Initial | None):
         self.default = default
 
     def _copy_from(self, parent: System):
@@ -111,7 +112,7 @@ def _assign_equation_order(
 class Parameter(Node, Scalar):
     equation_order: int = 0
 
-    def __init__(self, *, default: Initial | Symbol):
+    def __init__(self, *, default: Initial | Symbol | None):
         self.default = default
 
     def _copy_from(self, parent: System):
@@ -144,10 +145,10 @@ class Parameter(Node, Scalar):
 
 
 class Variable(Parameter):
-    derivatives: ChainMap[int, Initial]
+    derivatives: ChainMap[int, Initial | None]
     equation_order: int | None = None
 
-    def __init__(self, *, initial: Initial):
+    def __init__(self, *, initial: Initial | None):
         self.derivatives = ChainMap({0: initial}, {})
         self._equations: list[Equation] = []
 
@@ -198,7 +199,7 @@ class Variable(Parameter):
     def __hash__(self) -> int:
         return super().__hash__()
 
-    def __eq__(self, other):
+    def __eq__(self, other: Self):
         if other.__class__ is not self.__class__:
             return NotImplemented
 
@@ -303,23 +304,25 @@ class EquationGroup(Node):
 
 
 @overload
-def assign(*, default: Initial | Symbol, constant: Literal[False] = False) -> Parameter:
+def assign(
+    *, default: Initial | Symbol | None = None, constant: Literal[False] = False
+) -> Parameter:
     ...
 
 
 @overload
-def assign(*, default: Initial, constant: Literal[True]) -> Constant:
+def assign(*, default: Initial | None = None, constant: Literal[True]) -> Constant:
     ...
 
 
-def assign(*, default, constant: bool = False):
+def assign(*, default=None, constant: bool = False):
     if constant:
         return Constant(default=default)
     else:
         return Parameter(default=default)
 
 
-def initial(*, default: Initial) -> Variable:
+def initial(*, default: Initial | None = None) -> Variable:
     return Variable(initial=default)
 
 
@@ -351,6 +354,7 @@ class EagerNamer(type):
 )
 class System(Node, metaclass=EagerNamer):
     _kwargs: dict
+    _required: ClassVar[set[str]]
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
 
     simulation_time = SimulationTime
@@ -363,15 +367,21 @@ class System(Node, metaclass=EagerNamer):
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)
 
-        for k in ("_annotations", "_kwargs", "name", "parent"):
+        for k in ("_annotations", "_required", "_kwargs", "name", "parent"):
             del cls._annotations[k]
 
-        # Check mismatched types
+        # Check mismatched types and compute required
+        cls._required = set()
         mismatched_types: list[tuple[str, type, type]] = []
         for k, annotation in cls._annotations.items():
             v = getattr(cls, k)
             if not isinstance(v, annotation):
                 mismatched_types.append((k, annotation, type(v)))
+
+            if isinstance(v, Variable) and v.initial is None:
+                cls._required.add(k)
+            elif isinstance(v, Parameter | Constant) and v.default is None:
+                cls._required.add(k)
 
         if len(mismatched_types) > 0:
             raise TypeError(
@@ -389,6 +399,10 @@ class System(Node, metaclass=EagerNamer):
     def __init__(self, *args, **kwargs):
         if len(args) > 0:
             raise TypeError("positional parameters are not allowed.")
+
+        missing = self._required - kwargs.keys()
+        if len(missing) > 0:
+            raise TypeError("missing arguments:", missing)
 
         unexpected = kwargs.keys() - self._annotations.keys()
         if len(unexpected) > 0:
