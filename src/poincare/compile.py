@@ -150,6 +150,7 @@ def build_first_order_symbolic_ode(
     dict[SimpleVariable, scalar.NumberT | Symbol],
     tuple[SimpleVariable, ...],
     tuple[SimpleParameter, ...],
+    SystemContentMapper,
 ]:
     #############
     # Step 0:
@@ -251,6 +252,7 @@ def build_first_order_symbolic_ode(
         deqs,
         state_variables,
         tuple(substitute(k, mapper) for k in parameters),
+        mapper,
     )
 
 
@@ -267,9 +269,14 @@ def build_first_order_vectorized_body(
     *,
     assignment_func: Callable[[str, str, str], str] = assignment,
 ) -> Compiled[str]:
-    ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(
-        system
-    )
+    (
+        ivs,
+        aeqs,
+        deqs,
+        state_variables,
+        parameters,
+        mapper,
+    ) = build_first_order_symbolic_ode(system)
 
     state_names = tuple(sorted(str(v) for v in state_variables))
     param_names = tuple(sorted(str(p) for p in parameters))
@@ -332,6 +339,7 @@ def build_first_order_vectorized_body(
         initial_def,
         ode_step_def,
         update_param_def,
+        mapper,
     )
 
 
@@ -362,6 +370,7 @@ def build_first_order_functions(
         optimizer(lm["init"]),
         optimizer(lm["ode_step"]),
         optimizer(lm["update_param"]),
+        vectorized.mapper,
     )
 
 
@@ -372,6 +381,7 @@ class Compiled(Generic[T]):
     init_func: T
     ode_func: T
     param_func: T
+    mapper: SystemContentMapper
 
 
 def compile(
