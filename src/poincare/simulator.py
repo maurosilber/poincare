@@ -2,23 +2,15 @@ from __future__ import annotations
 
 from collections import ChainMap
 from dataclasses import dataclass
-from typing import Protocol, TypeAlias, Any
+from typing import Protocol
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 from symbolite import Symbol
 
 from . import Constant, Derivative, Parameter, System, Variable
-from .compile import Backend, compile, Compiled, FunctionT
+from .compile import RHS, Array, Backend, Compiled, compile
 from .types import Initial, Number
-
-
-Array: TypeAlias = NDArray[np.float_]
-
-class RHS(Protocol):
-    def __call__(self, t: float, y: Array, p: Array, dy: Array) -> Array:
-        ...
 
 
 class Transform(Protocol):
@@ -46,16 +38,15 @@ class Solution:
 
 
 class Simulator:
-
     model = System | type[System]
-    compiled = Compiled[FunctionT]
+    compiled = Compiled[RHS]
 
     def __init__(
         self,
         system: System | type[System],
         /,
         *,
-        backend: Backend=Backend.FIRST_ORDER_VECTORIZED_NUMPY,
+        backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY,
     ):
         self.model = system
         self.compiled = compile(system, backend)
@@ -107,12 +98,14 @@ class Simulator:
         values: dict[Constant | Parameter | Variable | Derivative, Initial] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
-        times: NDArray,
+        times: Array,
     ):
         from scipy.integrate import odeint
 
         if t_span[0] != 0:
             raise NotImplementedError("odeint only works from t=0")
+
+        times = np.asarray(times)
 
         problem = self.create_problem(values, t_span=t_span)
         dy = np.empty_like(problem.y)

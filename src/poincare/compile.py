@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Callable, Generic, TypeAlias, TypeVar
+from typing import Any, Callable, Generic, Protocol, TypeAlias, TypeVar
 
 from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
@@ -15,13 +15,17 @@ from typing_extensions import Never
 from .types import Constant, Derivative, Initial, Parameter, System, Variable
 
 T = TypeVar("T")
-RHS: TypeAlias = Initial | Symbol
-FunctionT = Callable[
-    [float, Sequence[float], Sequence[float], MutableSequence[float]], Sequence[float]
-]
+ExprRHS: TypeAlias = Initial | Symbol
+Array: TypeAlias = Sequence[float]
+MutableArray: TypeAlias = MutableSequence[float]
 
 
-def identity(fn: FunctionT) -> FunctionT:
+class RHS(Protocol):
+    def __call__(self, t: float, y: Array, p: Array, dy: MutableArray) -> Array:
+        ...
+
+
+def identity(fn: RHS) -> RHS:
     return fn
 
 
@@ -32,7 +36,7 @@ class Backend(enum.Enum):
     FIRST_ORDER_VECTORIZED_JAX = enum.auto()
 
 
-def eqsum(eqs: list[RHS]) -> scalar.NumberT | Symbol:
+def eqsum(eqs: list[ExprRHS]) -> scalar.NumberT | Symbol:
     if len(eqs) == 0:
         return 0
     elif len(eqs) == 1:
@@ -57,8 +61,8 @@ def ode_vectorize(
     return expr
 
 
-def get_equations(system: System | type[System]) -> dict[Derivative, list[RHS]]:
-    equations: dict[Derivative, list[RHS]] = defaultdict(list)
+def get_equations(system: System | type[System]) -> dict[Derivative, list[ExprRHS]]:
+    equations: dict[Derivative, list[ExprRHS]] = defaultdict(list)
     for eq in system.yield_equations():
         equations[eq.lhs].append(eq.rhs)
     return equations
@@ -101,7 +105,7 @@ class SimpleParameter(scalar.Scalar):
         return self
 
 
-class ToSimpleScalar(dict[Any, Any]):
+class SystemContentMapper(dict[Any, Any]):
     """Used to convert Poincare Variables into SelfEvalScalar.
 
     Benefetis:
@@ -112,13 +116,17 @@ class ToSimpleScalar(dict[Any, Any]):
     """
 
     def __init__(
-        self, variables: tuple[Variable], parameters: tuple[Variable | Constant]
+        self,
+        variables: tuple[Variable, ...],
+        parameters: tuple[Variable | Constant, ...],
     ):
         self.variables = variables
         self.parameters = parameters
 
     def get(self, key: Any, default=None):
-        if isinstance(key, (Derivative, Variable)):
+        if key is System.simulation_time:
+            return SimpleParameter("t")
+        elif isinstance(key, (Derivative, Variable)):
             if isinstance(key, Derivative):
                 assert isinstance(key.variable, Variable)
                 if key.variable in self.variables:
@@ -140,8 +148,8 @@ def build_first_order_symbolic_ode(
     dict[SimpleVariable, scalar.NumberT | Symbol],
     dict[SimpleVariable, scalar.NumberT | Symbol],
     dict[SimpleVariable, scalar.NumberT | Symbol],
-    tuple[SimpleVariable],
-    tuple[SimpleParameter],
+    tuple[SimpleVariable, ...],
+    tuple[SimpleParameter, ...],
 ]:
     #############
     # Step 0:
@@ -195,7 +203,7 @@ def build_first_order_symbolic_ode(
     # according to the previous categorization
     # and add first order equations
 
-    mapper = ToSimpleScalar(variables, parameters)
+    mapper = SystemContentMapper(variables, parameters)
 
     # Initial values
     # Map variable to value.
@@ -237,13 +245,6 @@ def build_first_order_symbolic_ode(
     # TODO: add algebraic equations
     state_variables = tuple(deqs.keys())
 
-    # Replace Time
-    time_mapper = {System.simulation_time: SimpleParameter("t")}
-
-    ivs = {k: substitute(v, time_mapper) for k, v in ivs.items()}
-    aeqs = {k: substitute(v, time_mapper) for k, v in aeqs.items()}
-    deqs = {k: substitute(v, time_mapper) for k, v in deqs.items()}
-
     return (
         ivs,
         aeqs,
@@ -264,7 +265,7 @@ def jax_assignment(name: str, index: str, value: str) -> str:
 def build_first_order_vectorized_body(
     system: System | type[System],
     *,
-    assignment_func=assignment,
+    assignment_func: Callable[[str, str, str], str] = assignment,
 ) -> Compiled[str]:
     ivs, aeqs, deqs, state_variables, parameters = build_first_order_symbolic_ode(
         system
@@ -337,9 +338,9 @@ def build_first_order_vectorized_body(
 def build_first_order_functions(
     system: System | type[System],
     libsl: ModuleType,
-    optimizer: Callable[[FunctionT], FunctionT] = identity,
-    assignment_func: Callable[[str, str, str], str]=assignment,
-) -> Compiled[FunctionT]:
+    optimizer: Callable[[RHS], RHS] = identity,
+    assignment_func: Callable[[str, str, str], str] = assignment,
+) -> Compiled[RHS]:
     vectorized = build_first_order_vectorized_body(
         system, assignment_func=assignment_func
     )
@@ -376,7 +377,7 @@ class Compiled(Generic[T]):
 def compile(
     system: System | type[System],
     backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA,
-) -> Compiled[FunctionT]:
+) -> Compiled[RHS]:
     match backend:
         case Backend.FIRST_ORDER_VECTORIZED_STD:
             from symbolite.impl import libstd
