@@ -305,24 +305,32 @@ class EquationGroup(Node):
 
 @overload
 def assign(
-    *, default: Initial | Symbol | None = None, constant: Literal[False] = False
+    *,
+    default: Initial | Symbol | None = None,
+    constant: Literal[False] = False,
+    init: bool = True,
 ) -> Parameter:
     ...
 
 
 @overload
-def assign(*, default: Initial | None = None, constant: Literal[True]) -> Constant:
+def assign(
+    *,
+    default: Initial | None = None,
+    constant: Literal[True],
+    init: bool = True,
+) -> Constant:
     ...
 
 
-def assign(*, default=None, constant: bool = False):
+def assign(*, default=None, constant: bool = False, init: bool = True):
     if constant:
         return Constant(default=default)
     else:
         return Parameter(default=default)
 
 
-def initial(*, default: Initial | None = None) -> Variable:
+def initial(*, default: Initial | None = None, init: bool = True) -> Variable:
     return Variable(initial=default)
 
 
