@@ -18,10 +18,10 @@ $$ \\frac{dx}{dt} = -x \\quad \\text{with} \\quad x(0) = 1 $$
 we write can:
 
 ```python
->>> from poincare import Variable, System
+>>> from poincare import Variable, System, initial
 >>> class Model(System):
 ...   # Define a variable with name `x` with an initial value (t=0) of `1``.
-...   x = Variable(initial=1)
+...   x: Variable = initial(default=1)
 ...   # The rate of change of `x` (i.e. velocity) is assigned (<<) to `-x`.
 ...   # This relation is assigned to a Python variable (`eq`)
 ...   eq = x.derive() << -x
@@ -65,16 +65,9 @@ time
 
 which reuses the previously compiled model in the `Simulator` instance.
 
-2. Defining the model with type annotations,
-   so it can be instantiated with other values:
+2. Instantiating the model with other values:
 
 ```python
->>> from poincare import initial
->>> class Model(System):
-...   # Type annotated variables appear on Model.__init__
-...   x: Variable = initial(default=1)
-...   eq = x.derive() << -x
-...
 >>> Simulator(Model(x=2)).solve(times=range(3))
              x
 time
@@ -119,8 +112,8 @@ Constants allow to define common initial conditions for Variables:
 >>> from poincare import assign, Constant
 >>> class Model(System):
 ...     c: Constant = assign(default=1, constant=True)
-...     x = Variable(initial=c)
-...     y = Variable(initial=c)
+...     x: Variable = initial(default=c)
+...     y: Variable = initial(default=c)
 ...     eq_x = x.derive() << y
 ...     eq_y = y.derive() << -x
 ...
