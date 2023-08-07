@@ -90,14 +90,6 @@ def get_equations(system: System | type[System]) -> dict[Derivative, list[ExprRH
     return equations
 
 
-def get_initial_values(system: System | type[System]) -> dict[Derivative, Initial]:
-    initial_values: dict[Derivative, Initial] = {}
-    for var in system.yield_variables():
-        for order, initial_value in var.derivatives.items():
-            initial_values[Derivative(var, order=order)] = initial_value
-    return initial_values
-
-
 def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
     if not hasattr(value, "yield_named"):
         return False
@@ -169,7 +161,6 @@ def build_first_order_symbolic_ode(
 ) -> tuple[
     dict[SimpleVariable, scalar.NumberT | Symbol],
     dict[SimpleVariable, scalar.NumberT | Symbol],
-    dict[SimpleVariable, scalar.NumberT | Symbol],
     tuple[SimpleVariable, ...],
     tuple[SimpleParameter, ...],
     SystemContentMapper,
@@ -178,7 +169,6 @@ def build_first_order_symbolic_ode(
     # Step 0:
     # Get initial value and flattened equations
 
-    initial_values = get_initial_values(system)
     equations = {k: eqsum(v) for k, v in get_equations(system).items()}
 
     #############
@@ -194,24 +184,23 @@ def build_first_order_symbolic_ode(
     # taking note in which their derivative
     # Either in the LHS of equations and initial values
     inventory: defaultdict[Variable, set[int]] = defaultdict(set)
-    for var in tuple(initial_values.keys()) + tuple(equations.keys()):
+    for var in equations.keys():
         inventory[var.variable].add(var.order)
 
     # TODO. it is also a parameter if it depends on time.
 
     # or RHS of the equations
-    for group in (initial_values, equations):
-        for value in group.values():
-            if not hasattr(value, "yield_named"):
-                continue
-            for named in value.yield_named():
-                if isinstance(named, Derivative):
-                    inventory[named.variable].add(named.order)
-                elif isinstance(named, Variable):
-                    inventory[named].add(0)
-                elif isinstance(named, (Constant, Parameter)):
-                    # Constant are automatically added to parameters
-                    parameters.add(named)
+    for value in equations.values():
+        if not hasattr(value, "yield_named"):
+            continue
+        for named in value.yield_named():
+            if isinstance(named, Derivative):
+                inventory[named.variable].add(named.order)
+            elif isinstance(named, Variable):
+                inventory[named].add(0)
+            elif isinstance(named, (Constant, Parameter)):
+                # Constant are automatically added to parameters
+                parameters.add(named)
 
     for var, orders in inventory.items():
         if len(orders) == 1:
@@ -227,12 +216,6 @@ def build_first_order_symbolic_ode(
     # and add first order equations
 
     mapper = SystemContentMapper(variables, parameters)
-
-    # Initial values
-    # Map variable to value.
-    ivs: dict[SimpleVariable, Any] = {
-        substitute(k, mapper): substitute(v, mapper) for k, v in initial_values.items()
-    }
 
     # Algebraic equations
     # Maps variable to equation.
@@ -269,7 +252,6 @@ def build_first_order_symbolic_ode(
     state_variables = tuple(deqs.keys())
 
     return (
-        ivs,
         aeqs,
         deqs,
         state_variables,
@@ -292,7 +274,6 @@ def build_first_order_vectorized_body(
     assignment_func: Callable[[str, str, str], str] = assignment,
 ) -> Compiled[str]:
     (
-        ivs,
         aeqs,
         deqs,
         state_variables,
@@ -303,7 +284,6 @@ def build_first_order_vectorized_body(
     state_names = tuple(sorted(str(v) for v in state_variables))
     param_names = tuple(sorted(str(p) for p in parameters))
 
-    ivs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in ivs.items()}
     aeqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in aeqs.items()}
     deqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in deqs.items()}
 
@@ -320,23 +300,12 @@ def build_first_order_vectorized_body(
 
         raise ValueError(k)
 
-    initial_body = [
-        assignment_func("y0", to_index(k), str(eq)) for k, eq in ivs.items()
-    ]
     update_param_body = [
         assignment_func("p", to_index(k), str(eq)) for k, eq in aeqs.items()
     ]
     ode_step_body = [
         assignment_func("ydot", to_index(k), str(eq)) for k, eq in deqs.items()
     ]
-
-    initial_def = "\n    ".join(
-        [
-            "def init(t, p, y0):",
-            *initial_body,
-            "return y0",
-        ]
-    )
 
     update_param_def = "\n    ".join(
         [
@@ -358,7 +327,6 @@ def build_first_order_vectorized_body(
     return Compiled(
         state_names,
         param_names,
-        initial_def,
         ode_step_def,
         update_param_def,
         mapper,
@@ -378,7 +346,6 @@ def build_first_order_functions(
     lm = symbolite_compile(
         "\n".join(
             [
-                vectorized.init_func,
                 vectorized.ode_func,
                 vectorized.param_func,
             ]
@@ -389,7 +356,6 @@ def build_first_order_functions(
     return Compiled(
         vectorized.variable_names,
         vectorized.parameter_names,
-        optimizer(lm["init"]),
         optimizer(lm["ode_step"]),
         optimizer(lm["update_param"]),
         vectorized.mapper,
@@ -401,7 +367,6 @@ def build_first_order_functions(
 class Compiled(Generic[T]):
     variable_names: tuple[str, ...]
     parameter_names: tuple[str, ...]
-    init_func: T
     ode_func: T
     param_func: T
     mapper: SystemContentMapper
