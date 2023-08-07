@@ -216,19 +216,8 @@ class Derivative(Node, Symbol):
         self.variable = variable
         self.order = order
 
-    def __str__(self):
-        if self.order == 0:
-            return f"{self.variable}"
-        return f"{self.variable}.{self.order}"
-
-    def __get__(self, obj, cls) -> Self:
-        """Overrides Owned descriptor, as Derivative behaves as a wrapper for Variable."""
-
-        if obj is None:
-            return self
-
-        # Get or create the instance variable
-        variable: Variable = getattr(obj, self.variable.name)
+    def _copy_from(self, parent: Node) -> Self:
+        variable: Variable = getattr(parent, self.variable.name)
         return Derivative(variable=variable, order=self.order)
 
     def __set__(self, obj, value: Initial):

@@ -1,4 +1,4 @@
-from pytest import raises
+from pytest import mark, raises
 
 from ..types import Derivative, System, Variable, initial
 from .utils import is_derivative, is_same_variable
@@ -132,6 +132,50 @@ def test_override_collision():
         p1 = Particle1(x=x)
         vx = x.derive(initial=0)
         p2 = Particle2(x=x)
+
+    class Model(System):
+        x = Variable(initial=0)
+        vx = x.derive(initial=0)
+        p1 = Particle1(x=x)
+        p2 = Particle2(x=x)
+
+    assert Model.vx.initial == 0
+
+
+@mark.xfail(reason="Not yet implemented")
+def test_override_name_collision():
+    """Implicit assignment p.vx = vx"""
+
+    class Particle1(System):
+        x: Variable = initial(default=0)
+        v1 = x.derive(initial=0)
+
+    class Particle2(System):
+        x: Variable = initial(default=0)
+        v2 = x.derive(initial=0)
+
+    with raises(ValueError, match="colliding"):
+
+        class CollidingModel1(System):
+            x = Variable(initial=0)
+            p1 = Particle1(x=x)
+            p2 = Particle2(x=x)
+
+    with raises(ValueError, match="colliding"):
+
+        class CollidingModel2(System):
+            x = Variable(initial=0)
+            p1 = Particle1(x=x)
+            p2 = Particle2(x=x)
+            vx = x.derive(initial=0)
+
+    with raises(ValueError, match="colliding"):
+
+        class CollidionModel3(System):
+            x = Variable(initial=0)
+            p1 = Particle1(x=x)
+            vx = x.derive(initial=0)
+            p2 = Particle2(x=x)
 
     class Model(System):
         x = Variable(initial=0)
