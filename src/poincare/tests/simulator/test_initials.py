@@ -93,5 +93,5 @@ def test_override_with_constants():
 
 
 def test_cyclic_initials():
-    with raises(RecursionError, match="cyclic"):
+    with raises(ValueError, match="Cyclic"):
         Simulator(Model).create_problem(values={Model.k0: Model.k2})
