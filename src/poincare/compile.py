@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from collections import defaultdict
+from collections import ChainMap, defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
@@ -12,7 +12,7 @@ from symbolite.core import compile as symbolite_compile
 from symbolite.core import substitute
 from typing_extensions import Never
 
-from .types import Constant, Derivative, Initial, Parameter, System, Variable
+from .types import Derivative, Initial, Parameter, System, Variable
 
 T = TypeVar("T")
 ExprRHS: TypeAlias = Initial | Symbol
@@ -107,6 +107,9 @@ def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
 class SimpleVariable(scalar.Scalar):
     """Special type of Scalar that is evaluated to itself."""
 
+    def __repr__(self):
+        return self.name
+
     def eval(self, libsl: ModuleType | None = None):
         return self
 
@@ -115,107 +118,28 @@ class SimpleVariable(scalar.Scalar):
 class SimpleParameter(scalar.Scalar):
     """Special type of Scalar that is evaluated to itself."""
 
+    def __repr__(self):
+        return self.name
+
     def eval(self, libsl: ModuleType | None = None):
         return self
 
 
-class SystemContentMapper(dict[Any, Any]):
-    """Used to convert Poincare Variables into SelfEvalScalar.
+def build_first_order_symbolic_ode(system: System | type[System]):
+    parameters: dict[Parameter, SimpleParameter] = {}
+    variables: dict[Variable, SimpleVariable] = {}
+    derivatives: dict[Derivative, SimpleVariable] = {}
+    for v in system._yield(Parameter | Variable | Derivative):
+        match v:
+            case Derivative(variable=var, order=order):
+                derivatives[v] = SimpleVariable(f"{var}.{order}")
+            case Variable():
+                variables[v] = SimpleVariable(f"{v}.0")
+            case Parameter():
+                parameters[v] = SimpleParameter(str(v))
 
-    Benefetis:
-    - leaner
-    - immutable
-    - understood by Symbolite to vectorize
-    - can be involved when using evaluate to simplify part of the code.
-    """
-
-    def __init__(
-        self,
-        variables: tuple[Variable, ...],
-        parameters: tuple[Variable | Constant, ...],
-    ):
-        self.variables = variables
-        self.parameters = parameters
-
-    def get(self, key: Any, default=None):
-        if key is System.simulation_time:
-            return SimpleParameter("t")
-        elif isinstance(key, (Derivative, Variable)):
-            if isinstance(key, Derivative):
-                assert isinstance(key.variable, Variable)
-                if key.variable in self.variables:
-                    return SimpleVariable(str(key))
-            elif key in self.parameters:
-                return SimpleParameter(str(key))
-            elif key in self.variables:
-                return SimpleVariable(str(key))
-            else:
-                raise ValueError(f"Not found {key}")
-        elif isinstance(key, (Constant, Parameter)):
-            return SimpleParameter(str(key))
-        return key
-
-
-def build_first_order_symbolic_ode(
-    system: System | type[System],
-) -> tuple[
-    dict[SimpleVariable, scalar.NumberT | Symbol],
-    dict[SimpleVariable, scalar.NumberT | Symbol],
-    tuple[SimpleVariable, ...],
-    tuple[SimpleParameter, ...],
-    SystemContentMapper,
-]:
-    #############
-    # Step 0:
-    # Get initial value and flattened equations
-
+    mapper = ChainMap(variables, derivatives, parameters)
     equations = {k: eqsum(v) for k, v in get_equations(system).items()}
-
-    #############
-    # Step 1:
-    # Divide between:
-    # - parameters: variables that appear with in a single "order" and constants.
-    # - variables: variables appear with more than one "order".
-
-    variables: set[Variable] = set()
-    parameters: set[Constant | Variable] = set()
-
-    # Create an inventory of all variables in the systems
-    # taking note in which their derivative
-    # Either in the LHS of equations and initial values
-    inventory: defaultdict[Variable, set[int]] = defaultdict(set)
-    for var in equations.keys():
-        inventory[var.variable].add(var.order)
-
-    # TODO. it is also a parameter if it depends on time.
-
-    # or RHS of the equations
-    for value in equations.values():
-        if not hasattr(value, "yield_named"):
-            continue
-        for named in value.yield_named():
-            if isinstance(named, Derivative):
-                inventory[named.variable].add(named.order)
-            elif isinstance(named, Variable):
-                inventory[named].add(0)
-            elif isinstance(named, (Constant, Parameter)):
-                # Constant are automatically added to parameters
-                parameters.add(named)
-
-    for var, orders in inventory.items():
-        if len(orders) == 1:
-            parameters.add(var)
-        else:
-            variables.add(var)
-            assert var.equation_order == max(orders)
-
-    #############
-    # Step 2
-    # Replace Variable/Derivative/Constant by SimpleVariable and SimpleParameter
-    # according to the previous categorization
-    # and add first order equations
-
-    mapper = SystemContentMapper(variables, parameters)
 
     # Algebraic equations
     # Maps variable to equation.
@@ -232,31 +156,32 @@ def build_first_order_symbolic_ode(
     # (unlike 'equations' that maps derived variable to equation)
     deqs: dict[SimpleVariable, Any] = {}
 
-    for var in sorted(variables):
+    for var in variables:
         # For each variable
         # - create first order differential equations except for var.equation_order
         # - for the var.equation_order use the defined equation
-        assert var.equation_order is not None
-        current: Variable | Derivative = var
-        for _ in range(var.equation_order - 1):
-            upcoming = current.derive()
-            deqs[SimpleVariable(str(current))] = SimpleVariable(str(upcoming))
-            current = upcoming
+        if var.equation_order is None:
+            continue
 
-        lhs = SimpleVariable(str(current))
-        rhs = substitute(equations[current.derive()], mapper)
+        for order in range(1, var.equation_order):
+            lhs = SimpleVariable(f"{var}.{order-1}")
+            rhs = SimpleVariable(f"{var}.{order}")
+            deqs[lhs] = rhs
+
+        lhs = SimpleVariable(f"{var}.{var.equation_order - 1 }")
+        rhs = substitute(equations[Derivative(var, order=var.equation_order)], mapper)
         deqs[lhs] = rhs
 
     # The state variables are all the keys in the differential equations
     # TODO: add algebraic equations
     state_variables = tuple(deqs.keys())
 
-    return (
-        aeqs,
-        deqs,
-        state_variables,
-        tuple(substitute(k, mapper) for k in parameters),
-        mapper,
+    return Compiled[dict](
+        variable_names=state_variables,
+        parameter_names=tuple(substitute(k, mapper) for k in parameters),
+        ode_func=deqs,
+        param_func=aeqs,
+        mapper=mapper,
     )
 
 
@@ -273,13 +198,12 @@ def build_first_order_vectorized_body(
     *,
     assignment_func: Callable[[str, str, str], str] = assignment,
 ) -> Compiled[str]:
-    (
-        aeqs,
-        deqs,
-        state_variables,
-        parameters,
-        mapper,
-    ) = build_first_order_symbolic_ode(system)
+    symbolic = build_first_order_symbolic_ode(system)
+    aeqs = symbolic.param_func
+    deqs = symbolic.ode_func
+    state_variables = symbolic.variable_names
+    parameters = symbolic.parameter_names
+    mapper = symbolic.mapper
 
     state_names = tuple(sorted(str(v) for v in state_variables))
     param_names = tuple(sorted(str(p) for p in parameters))
@@ -324,12 +248,13 @@ def build_first_order_vectorized_body(
         ]
     )
 
+    inverse = {str(v): str(k) for k, v in mapper.items()}  # TODO: repeated v?
     return Compiled(
-        state_names,
-        param_names,
+        tuple(inverse[k] for k in state_names),
+        tuple(inverse[k] for k in param_names),
         ode_step_def,
         update_param_def,
-        mapper,
+        symbolic.mapper,
     )
 
 
@@ -369,7 +294,7 @@ class Compiled(Generic[T]):
     parameter_names: tuple[str, ...]
     ode_func: T
     param_func: T
-    mapper: SystemContentMapper
+    mapper: dict
     libsl: ModuleType | None = None
 
 

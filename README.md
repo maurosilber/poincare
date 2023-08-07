@@ -93,7 +93,7 @@ we have to assign an initial condition to the derivative of a variable:
 ...   eq = v.derive() << -x
 ...
 >>> Simulator(Oscillator).solve(times=range(3))
-             x       x.1
+             x         v
 time
 0     1.000000  0.000000
 1     0.540302 -0.841471

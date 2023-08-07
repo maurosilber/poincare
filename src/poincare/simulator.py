@@ -9,6 +9,7 @@ from symbolite import Symbol
 from symbolite.core import substitute
 
 from . import Constant, Derivative, Parameter, System, Variable
+from ._node import Node
 from ._utils import eval_content
 from .compile import (
     RHS,
@@ -88,16 +89,22 @@ class Simulator:
 
         assert self.compiled.libsl is not None
         result = eval_content(
-            content, self.compiled.libsl, (SimpleParameter, SimpleVariable)
+            content,
+            self.compiled.libsl,
+            (
+                SimpleParameter,
+                SimpleVariable,
+                Node,
+            ),
         )
-
+        mapper = {str(k): v for k, v in self.compiled.mapper.items()}
         y0 = np.fromiter(
-            (result[SimpleVariable(k)] for k in self.compiled.variable_names),
+            (result[mapper[k]] for k in self.compiled.variable_names),
             dtype=float,
             count=len(self.compiled.variable_names),
         )
         p0 = np.fromiter(
-            (result[SimpleParameter(k)] for k in self.compiled.parameter_names),
+            (result[mapper[k]] for k in self.compiled.parameter_names),
             dtype=float,
             count=len(self.compiled.parameter_names),
         )
