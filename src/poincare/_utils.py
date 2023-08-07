@@ -1,5 +1,19 @@
-from types import MethodType
-from typing import Callable, Concatenate, Generic, ParamSpec, TypeVar, overload
+from collections import defaultdict
+from types import MethodType, ModuleType
+from typing import (
+    Any,
+    Callable,
+    Concatenate,
+    Generator,
+    Generic,
+    Hashable,
+    ParamSpec,
+    TypeVar,
+    overload,
+)
+
+from symbolite import scalar
+from symbolite.core import evaluate, inspect, substitute
 
 S = TypeVar("S")
 P = ParamSpec("P")
@@ -23,3 +37,70 @@ class class_and_instance_method(Generic[S, P, R]):
             return MethodType(self.func, cls)
         else:
             return MethodType(self.func, obj)
+
+
+TH = TypeVar("TH", bound=Hashable)
+
+
+def solve_dependencies(
+    dependencies: dict[TH, set[TH]]
+) -> Generator[set[TH], None, None]:
+    """Solve a dependency graph.
+
+    Parameters
+    ----------
+    dependencies :
+        dependency dictionary. For each key, the value is an iterable indicating its
+        dependencies.
+
+    Yields
+    ------
+    set
+        iterator of sets, each containing keys of independents tasks dependent only of
+        the previous tasks in the list.
+
+    Raises
+    ------
+    ValueError
+        if a cyclic dependency is found.
+    """
+    while dependencies:
+        # values not in keys (items without dep)
+        t = {i for v in dependencies.values() for i in v} - dependencies.keys()
+        # and keys without value (items without dep)
+        t.update(k for k, v in dependencies.items() if not v)
+        # can be done right away
+        if not t:
+            raise ValueError(
+                "Cyclic dependencies exist among these items: {}".format(
+                    ", ".join(repr(x) for x in dependencies.items())
+                )
+            )
+        # and cleaned up
+        dependencies = {k: v - t for k, v in dependencies.items() if v}
+        yield t
+
+
+def eval_content(
+    content: dict[TH, Any], libsl: ModuleType, used_types: tuple[type, ...]
+) -> dict[TH, scalar.NumberT]:
+    def f(val):
+        return isinstance(val, used_types)
+
+    out: dict[TH, scalar.NumberT] = {}
+
+    dependencies = defaultdict(set)
+    for k, v in content.items():
+        if isinstance(v, scalar.NumberT):
+            out[k] = v
+        else:
+            for el in filter(f, inspect(v).keys()):
+                dependencies[k].add(el)
+
+    layers = solve_dependencies(dependencies)
+
+    for layer in layers:
+        for item in layer:
+            out[item] = evaluate(substitute(content[item], out), libsl)
+
+    return out

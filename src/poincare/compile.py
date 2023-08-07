@@ -35,6 +35,28 @@ class Backend(enum.Enum):
     FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = enum.auto()
     FIRST_ORDER_VECTORIZED_JAX = enum.auto()
 
+    @staticmethod
+    def get_libsl(backend: Backend) -> ModuleType:
+        match backend:
+            case Backend.FIRST_ORDER_VECTORIZED_STD:
+                from symbolite.impl import libstd
+
+                return libstd
+            case Backend.FIRST_ORDER_VECTORIZED_NUMPY:
+                from symbolite.impl import libnumpy
+
+                return libnumpy
+            case Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA:
+                from symbolite.impl import libnumpy
+
+                return libnumpy
+            case Backend.FIRST_ORDER_VECTORIZED_JAX:
+                from symbolite.impl import libjax
+
+                return libjax
+            case _:
+                assert_never(backend, message="Unknown backend {}")
+
 
 def eqsum(eqs: list[ExprRHS]) -> scalar.NumberT | Symbol:
     if len(eqs) == 0:
@@ -371,6 +393,7 @@ def build_first_order_functions(
         optimizer(lm["ode_step"]),
         optimizer(lm["update_param"]),
         vectorized.mapper,
+        libsl,
     )
 
 
@@ -382,35 +405,29 @@ class Compiled(Generic[T]):
     ode_func: T
     param_func: T
     mapper: SystemContentMapper
+    libsl: ModuleType | None = None
 
 
 def compile(
     system: System | type[System],
     backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA,
 ) -> Compiled[RHS]:
+    libsl = Backend.get_libsl(backend)
+
+    optimizer_fun = identity
+    assignment_fun = assignment
     match backend:
-        case Backend.FIRST_ORDER_VECTORIZED_STD:
-            from symbolite.impl import libstd
-
-            return build_first_order_functions(system, libstd)
-        case Backend.FIRST_ORDER_VECTORIZED_NUMPY:
-            from symbolite.impl import libnumpy
-
-            return build_first_order_functions(system, libnumpy)
         case Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA:
             import numba
-            from symbolite.impl import libnumpy
 
-            return build_first_order_functions(system, libnumpy, numba.njit)
+            optimizer_fun = numba.njit
         case Backend.FIRST_ORDER_VECTORIZED_JAX:
             import jax
-            from symbolite.impl import libjax
 
-            return build_first_order_functions(
-                system, libjax, jax.jit, assignment_func=jax_assignment
-            )
-        case _:
-            assert_never(backend, message="Unknown backend {}")
+            optimizer_fun = jax.jit
+            assignment_fun = jax_assignment
+
+    return build_first_order_functions(system, libsl, optimizer_fun, assignment_fun)
 
 
 def assert_never(arg: Never, *, message: str) -> Never:
