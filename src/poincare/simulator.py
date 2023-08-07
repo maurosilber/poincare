@@ -70,7 +70,9 @@ class Simulator:
 
     def create_problem(
         self,
-        values: dict[Constant | Parameter | Variable | Derivative, Initial] = {},
+        values: dict[
+            Constant | Parameter | Variable | Derivative, Initial | Symbol
+        ] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
     ):
@@ -126,6 +128,6 @@ class Simulator:
         )
         return pd.DataFrame(
             result,
-            columns=self.compiled.variable_names,
+            columns=[n[1:] for n in self.compiled.variable_names],
             index=pd.Series(times, name="time"),
         )
