@@ -60,6 +60,8 @@ class Node:
 
     def __str__(self) -> str:
         # This is a recursive method, as self.parent is Owned | None
+        if self.parent is None or self.parent.name == "":
+            return self.name
         return f"{self.parent}.{self.name}"
 
     def __repr__(self):

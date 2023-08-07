@@ -367,11 +367,6 @@ class System(Node, metaclass=EagerNamer):
 
     simulation_time = SimulationTime
 
-    def __str__(self) -> str:
-        if self.parent is None:
-            return self.name
-        return f"{self.parent}.{self.name}"
-
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)
 

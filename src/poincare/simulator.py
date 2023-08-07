@@ -128,6 +128,6 @@ class Simulator:
         )
         return pd.DataFrame(
             result,
-            columns=[n[1:] for n in self.compiled.variable_names],
+            columns=self.compiled.variable_names,
             index=pd.Series(times, name="time"),
         )
