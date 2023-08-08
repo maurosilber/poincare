@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from collections import ChainMap, defaultdict
+from collections import defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
@@ -75,20 +75,20 @@ def eqsum(eqs: list[ExprRHS]) -> scalar.NumberT | Symbol:
         return sum(eqs[1:], start=eqs[0])
 
 
-def ode_vectorize(
-    expr: scalar.NumberT | Symbol,
-    state_names: tuple[str, ...],
-    param_names: tuple[str, ...],
+def vector_mapping(
+    variables: Sequence[Variable | Derivative],
+    parameters: Sequence[Parameter],
     state_varname: str = "y",
     param_varname: str = "p",
-) -> scalar.NumberT | Symbol:
-    expr = vector.vectorize(
-        expr, state_names, varname=state_varname, scalar_type=SimpleVariable
-    )
-    expr = vector.vectorize(
-        expr, param_names, varname=param_varname, scalar_type=SimpleParameter
-    )
-    return expr
+) -> dict[Variable | Derivative | Parameter, vector.Vector]:
+    y = vector.Vector(state_varname)
+    p = vector.Vector(param_varname)
+    mapping = {}
+    for i, v in enumerate(variables):
+        mapping[v] = y[i]
+    for i, v in enumerate(parameters):
+        mapping[v] = p[i]
+    return mapping
 
 
 def yield_equations(system: System | type[System]) -> Iterator[Equation]:
@@ -121,85 +121,45 @@ def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
     return False
 
 
-@dataclass(frozen=True)
-class SimpleVariable(scalar.Scalar):
-    """Special type of Scalar that is evaluated to itself."""
-
-    def __repr__(self):
-        return self.name
-
-    def eval(self, libsl: ModuleType | None = None):
-        return self
-
-
-@dataclass(frozen=True)
-class SimpleParameter(scalar.Scalar):
-    """Special type of Scalar that is evaluated to itself."""
-
-    def __repr__(self):
-        return self.name
-
-    def eval(self, libsl: ModuleType | None = None):
-        return self
+def get_derivative(variable: Variable, order: int) -> Variable | Derivative:
+    if order == 0:
+        return variable
+    else:
+        return variable.derivatives[order]
 
 
 def build_first_order_symbolic_ode(system: System | type[System]):
-    parameters: dict[Parameter, SimpleParameter] = {}
-    variables: dict[Variable, SimpleVariable] = {}
-    derivatives: dict[Derivative, SimpleVariable] = {}
-    for v in system._yield(Parameter | Variable | Derivative):
-        match v:
-            case Derivative(variable=var, order=order):
-                derivatives[v] = SimpleVariable(f"{var}.{order}")
-            case Variable():
-                variables[v] = SimpleVariable(f"{v}.0")
-            case Parameter():
-                parameters[v] = SimpleParameter(str(v))
-
-    mapper = ChainMap(variables, derivatives, parameters)
     equations = {k: eqsum(v) for k, v in get_equations(system).items()}
 
     # Algebraic equations
     # Maps variable to equation.
-    aeqs: dict[SimpleVariable, Any] = {
-        # TODO: this is wrong. Should not get k.default but rather get it from
-        # Equations??
-        substitute(k, mapper): substitute(k.default, mapper)
-        for k in parameters
-        if depends_on_at_least_one_variable_or_time(k.default)
-    }
+    aeqs: dict[Parameter, ExprRHS] = {k: k.default for k in system._yield(Parameter)}
 
     # Differential equations
     # Map variable to be derived 1 time to equation.
     # (unlike 'equations' that maps derived variable to equation)
-    deqs: dict[SimpleVariable, Any] = {}
-
-    for var in variables:
+    deqs: dict[Variable | Derivative, ExprRHS] = {}
+    for var in system._yield(Variable):
         # For each variable
         # - create first order differential equations except for var.equation_order
         # - for the var.equation_order use the defined equation
-        if var.equation_order is None:
-            continue
+        assert var.equation_order is not None
 
         for order in range(1, var.equation_order):
-            lhs = SimpleVariable(f"{var}.{order-1}")
-            rhs = SimpleVariable(f"{var}.{order}")
+            lhs = get_derivative(var, order - 1)
+            rhs = get_derivative(var, order)
             deqs[lhs] = rhs
 
-        lhs = SimpleVariable(f"{var}.{var.equation_order - 1 }")
-        rhs = substitute(equations[Derivative(var, order=var.equation_order)], mapper)
+        order = var.equation_order
+        lhs = get_derivative(var, order - 1)
+        rhs = equations[get_derivative(var, order)]
         deqs[lhs] = rhs
 
-    # The state variables are all the keys in the differential equations
-    # TODO: add algebraic equations
-    state_variables = tuple(deqs.keys())
-
     return Compiled[dict](
-        variable_names=state_variables,
-        parameter_names=tuple(substitute(k, mapper) for k in parameters),
+        variables=list(deqs.keys()),
+        parameters=list(aeqs.keys()),
         ode_func=deqs,
         param_func=aeqs,
-        mapper=mapper,
     )
 
 
@@ -219,24 +179,19 @@ def build_first_order_vectorized_body(
     symbolic = build_first_order_symbolic_ode(system)
     aeqs = symbolic.param_func
     deqs = symbolic.ode_func
-    state_variables = symbolic.variable_names
-    parameters = symbolic.parameter_names
-    mapper = symbolic.mapper
 
-    state_names = tuple(sorted(str(v) for v in state_variables))
-    param_names = tuple(sorted(str(p) for p in parameters))
-
-    aeqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in aeqs.items()}
-    deqs = {str(k): ode_vectorize(v, state_names, param_names) for k, v in deqs.items()}
+    mapping = vector_mapping(symbolic.variables, symbolic.parameters)
+    aeqs = {k: substitute(v, mapping) for k, v in aeqs.items()}
+    deqs = {k: substitute(v, mapping) for k, v in deqs.items()}
 
     def to_index(k: str) -> str:
         try:
-            return str(state_names.index(k))
+            return str(symbolic.variables.index(k))
         except ValueError:
             pass
 
         try:
-            return str(param_names.index(k))
+            return str(symbolic.parameters.index(k))
         except ValueError:
             pass
 
@@ -266,13 +221,11 @@ def build_first_order_vectorized_body(
         ]
     )
 
-    inverse = {str(v): str(k) for k, v in mapper.items()}  # TODO: repeated v?
     return Compiled(
-        tuple(inverse[k] for k in state_names),
-        tuple(inverse[k] for k in param_names),
+        symbolic.variables,
+        symbolic.parameters,
         ode_step_def,
         update_param_def,
-        symbolic.mapper,
     )
 
 
@@ -297,22 +250,20 @@ def build_first_order_functions(
     )
 
     return Compiled(
-        vectorized.variable_names,
-        vectorized.parameter_names,
+        vectorized.variables,
+        vectorized.parameters,
         optimizer(lm["ode_step"]),
         optimizer(lm["update_param"]),
-        vectorized.mapper,
         libsl,
     )
 
 
 @dataclass(frozen=True)
 class Compiled(Generic[T]):
-    variable_names: tuple[str, ...]
-    parameter_names: tuple[str, ...]
+    variables: Sequence[Variable | Derivative]
+    parameters: Sequence[Parameter]
     ode_func: T
     param_func: T
-    mapper: dict
     libsl: ModuleType | None = None
 
 

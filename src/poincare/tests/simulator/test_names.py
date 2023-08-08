@@ -1,4 +1,4 @@
-from pytest import mark, raises
+from pytest import raises
 
 from ... import Constant, Parameter, System, Variable, assign, initial
 from ...simulator import Simulator
@@ -13,12 +13,11 @@ def assert_names(
     sim = Simulator(system)
     df = sim.solve(times=range(1))
 
-    assert set(sim.compiled.variable_names) == variables
-    assert set(sim.compiled.parameter_names) == parameters
+    assert set(map(str, sim.compiled.variables)) == variables
+    assert set(map(str, sim.compiled.parameters)) == parameters
     assert set(df.columns) == variables
 
 
-@mark.xfail
 def test_no_equation():
     class Model(System):
         c: Constant = assign(default=0, constant=True)
@@ -28,7 +27,6 @@ def test_no_equation():
     assert_names(Model, variables=set(), parameters=set())
 
 
-@mark.xfail
 def test_single_variable():
     class Model(System):
         c: Constant = assign(default=0, constant=True)

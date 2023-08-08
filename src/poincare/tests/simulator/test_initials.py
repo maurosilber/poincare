@@ -25,12 +25,8 @@ def assert_initials(
 ):
     sim = Simulator(system)
     problem = sim.create_problem(values)
-    assert dict(zip(sim.compiled.parameter_names, problem.p)) == {
-        str(k): v for k, v in expected_parameters.items()
-    }
-    assert dict(zip(sim.compiled.variable_names, problem.y)) == {
-        str(k): v for k, v in expected_variables.items()
-    }
+    assert dict(zip(sim.compiled.parameters, problem.p)) == expected_parameters
+    assert dict(zip(sim.compiled.variables, problem.y)) == expected_variables
 
 
 def test_default_initials():

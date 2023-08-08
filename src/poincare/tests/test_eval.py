@@ -1,8 +1,28 @@
 import pytest
+from symbolite import scalar
 from symbolite.impl import libstd
 
 from .._utils import eval_content
-from ..compile import SimpleParameter, SimpleVariable
+
+
+class SimpleVariable(scalar.Scalar):
+    """Special type of Scalar that is evaluated to itself."""
+
+    def __repr__(self):
+        return self.name
+
+    def eval(self, libsl=None):
+        return self
+
+
+class SimpleParameter(scalar.Scalar):
+    """Special type of Scalar that is evaluated to itself."""
+
+    def __repr__(self):
+        return self.name
+
+    def eval(self, libsl=None):
+        return self
 
 
 def test_eval_content():

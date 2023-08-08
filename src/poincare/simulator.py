@@ -6,20 +6,11 @@ from typing import Protocol
 import numpy as np
 import pandas as pd
 from symbolite import Symbol
-from symbolite.core import substitute
 
 from . import Constant, Derivative, Parameter, System, Variable
 from ._node import Node
 from ._utils import eval_content
-from .compile import (
-    RHS,
-    Array,
-    Backend,
-    Compiled,
-    SimpleParameter,
-    SimpleVariable,
-    compile,
-)
+from .compile import RHS, Array, Backend, Compiled, compile
 from .types import Initial
 
 
@@ -62,6 +53,7 @@ class Simulator:
     ):
         self.model = system
         self.compiled = compile(system, backend)
+        self.variable_names = tuple(map(str, self.compiled.variables))
 
         self._defaults = {}
         for v in system._yield(Constant | Parameter):
@@ -82,31 +74,17 @@ class Simulator:
             **values,
         }
 
-        content = {
-            substitute(k, self.compiled.mapper): substitute(v, self.compiled.mapper)
-            for k, v in content.items()
-        }
-
         assert self.compiled.libsl is not None
-        result = eval_content(
-            content,
-            self.compiled.libsl,
-            (
-                SimpleParameter,
-                SimpleVariable,
-                Node,
-            ),
-        )
-        mapper = {str(k): v for k, v in self.compiled.mapper.items()}
+        result = eval_content(content, self.compiled.libsl, Node)
         y0 = np.fromiter(
-            (result[mapper[k]] for k in self.compiled.variable_names),
+            (result[k] for k in self.compiled.variables),
             dtype=float,
-            count=len(self.compiled.variable_names),
+            count=len(self.compiled.variables),
         )
         p0 = np.fromiter(
-            (result[mapper[k]] for k in self.compiled.parameter_names),
+            (result[k] for k in self.compiled.parameters),
             dtype=float,
-            count=len(self.compiled.parameter_names),
+            count=len(self.compiled.parameters),
         )
         return Problem(self.compiled.ode_func, t_span, y0, p0)
 
@@ -135,6 +113,6 @@ class Simulator:
         )
         return pd.DataFrame(
             result,
-            columns=self.compiled.variable_names,
+            columns=self.variable_names,
             index=pd.Series(times, name="time"),
         )
