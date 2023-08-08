@@ -131,24 +131,39 @@ def get_derivative(variable: Variable, order: int) -> Variable | Derivative:
 def build_first_order_symbolic_ode(system: System | type[System]):
     equations = {k: eqsum(v) for k, v in get_equations(system).items()}
 
+    in_eq_parameters: set[Parameter] = set()
+    in_eq_variables: set[Variable] = set()
+    for derivative, eq in equations.items():
+        in_eq_variables.add(derivative.variable)
+        if isinstance(eq, Symbol):
+            for symbol in eq.yield_named():
+                if isinstance(symbol, Variable):
+                    in_eq_variables.add(symbol)
+                elif isinstance(symbol, Parameter):
+                    in_eq_parameters.add(symbol)
+
     # Algebraic equations
     # Maps variable to equation.
-    aeqs: dict[Parameter, ExprRHS] = {k: k.default for k in system._yield(Parameter)}
+    parameters = sorted(in_eq_parameters, key=str)
+    aeqs: dict[Parameter, ExprRHS] = {k: k.default for k in parameters}
 
     # Differential equations
     # Map variable to be derived 1 time to equation.
     # (unlike 'equations' that maps derived variable to equation)
+    variables: list[Variable | Derivative] = []
     deqs: dict[Variable | Derivative, ExprRHS] = {}
-    for var in system._yield(Variable):
+    for var in sorted(in_eq_variables, key=str):
         # For each variable
         # - create first order differential equations except for var.equation_order
         # - for the var.equation_order use the defined equation
         assert var.equation_order is not None
+        variables.append(var)
 
         for order in range(1, var.equation_order):
             lhs = get_derivative(var, order - 1)
             rhs = get_derivative(var, order)
             deqs[lhs] = rhs
+            variables.append(rhs)
 
         order = var.equation_order
         lhs = get_derivative(var, order - 1)
@@ -156,8 +171,8 @@ def build_first_order_symbolic_ode(system: System | type[System]):
         deqs[lhs] = rhs
 
     return Compiled[dict](
-        variables=list(deqs.keys()),
-        parameters=list(aeqs.keys()),
+        variables=variables,
+        parameters=parameters,
         ode_func=deqs,
         param_func=aeqs,
     )
