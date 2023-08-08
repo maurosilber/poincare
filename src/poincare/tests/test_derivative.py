@@ -1,4 +1,4 @@
-from pytest import mark, raises
+from pytest import raises
 
 from ..types import Derivative, System, Variable, initial
 from .utils import is_derivative, is_same_variable
@@ -37,26 +37,32 @@ def test_duplicate_derivative_assignment():
 
 
 def test_duplicate_derivatives():
-    """Taking the same derivative multiple times must create aliases,
-    not new variables."""
+    """Cannot take the same derivative multiple times."""
 
-    class Model(System):
-        x = Variable(initial=0)
-        x1 = x.derive(initial=0)
-        x2 = x.derive()
+    with raises(NameError):
 
-    assert is_same_variable(Model.x1, Model.x2)
-    assert is_derivative(Model.x1, Model.x)
-    assert is_derivative(Model.x2, Model.x)
+        class Model(System):
+            x = Variable(initial=0)
+            x1 = x.derive(initial=0)
+            x2 = x.derive()
 
 
-def test_automatic_derivative():
+def test_no_automatic_derivative():
     """The derivative is not explicitly created,
     but is created to maintain the relationship inside Particle."""
 
+    with raises(TypeError, match="derivative"):
+
+        class Model(System):
+            x = Variable(initial=0)
+            p = Particle(x=x)
+
+
+def test_explicit_assignment():
     class Model(System):
         x = Variable(initial=0)
-        p = Particle(x=x)
+        vx = x.derive(initial=0)
+        p = Particle(x=x, vx=vx)
 
     assert is_same_variable(Model.p.x, Model.x)
 
@@ -65,125 +71,23 @@ def test_automatic_derivative():
 
     # The derivative is linked to the outside Variable
     assert is_derivative(Model.p.vx, Model.x)
+    assert is_same_variable(Model.p.vx, Model.vx)
 
 
-def test_automatic_higher_order_derivative():
-    """The derivative is not explicitly created,
-    but is created to maintain the relationship inside Particle."""
+def test_explicit_assignment_of_initial():
+    with raises(TypeError):
 
-    class SecondOrder(System):
-        x0: Variable = initial(default=0)
-        x1 = x0.derive(initial=0)
-        x2 = x1.derive(initial=0)
+        class Model1(System):
+            x = Variable(initial=0)
+            vx = x.derive(initial=0)
+            p = Particle(vx=1, x=x)
 
-    class Model(System):
-        x = Variable(initial=0)
-        p = SecondOrder(x0=x)
-
-    assert is_same_variable(Model.p.x0, Model.x)
-
-    # Maintain inner relationship from Particle
-    assert is_derivative(Model.p.x2, Model.p.x0)
-
-    # The derivative is linked to the outside Variable
-    assert is_derivative(Model.p.x2, Model.x)
-
-
-def test_colliding_implicit_assignment():
-    """Implicit assignment p.vx = vx"""
-
-    class Particle1(System):
-        x: Variable = initial(default=0)
-        vx = x.derive(initial=1)
-
-    class Particle2(System):
-        x: Variable = initial(default=0)
-        vx = x.derive(initial=2)
-
-    with raises(ValueError, match="colliding"):
+    with raises(TypeError):
 
         class Model(System):
             x = Variable(initial=0)
-            p1 = Particle1(x=x)
-            p2 = Particle2(x=x)
-
-
-def test_override_collision():
-    """Implicit assignment p.vx = vx"""
-
-    class Particle1(System):
-        x: Variable = initial(default=0)
-        vx = x.derive(initial=1)
-
-    class Particle2(System):
-        x: Variable = initial(default=0)
-        vx = x.derive(initial=2)
-
-    with raises(ValueError, match="colliding"):
-
-        class CollidingModel1(System):
-            x = Variable(initial=0)
-            p1 = Particle1(x=x)
-            p2 = Particle2(x=x)
             vx = x.derive(initial=0)
-
-    class CollidionModel2(System):
-        x = Variable(initial=0)
-        p1 = Particle1(x=x)
-        vx = x.derive(initial=0)
-        p2 = Particle2(x=x)
-
-    class Model(System):
-        x = Variable(initial=0)
-        vx = x.derive(initial=0)
-        p1 = Particle1(x=x)
-        p2 = Particle2(x=x)
-
-    assert Model.vx.initial == 0
-
-
-@mark.xfail(reason="Not yet implemented")
-def test_override_name_collision():
-    """Implicit assignment p.vx = vx"""
-
-    class Particle1(System):
-        x: Variable = initial(default=0)
-        v1 = x.derive(initial=0)
-
-    class Particle2(System):
-        x: Variable = initial(default=0)
-        v2 = x.derive(initial=0)
-
-    with raises(ValueError, match="colliding"):
-
-        class CollidingModel1(System):
-            x = Variable(initial=0)
-            p1 = Particle1(x=x)
-            p2 = Particle2(x=x)
-
-    with raises(ValueError, match="colliding"):
-
-        class CollidingModel2(System):
-            x = Variable(initial=0)
-            p1 = Particle1(x=x)
-            p2 = Particle2(x=x)
-            vx = x.derive(initial=0)
-
-    with raises(ValueError, match="colliding"):
-
-        class CollidionModel3(System):
-            x = Variable(initial=0)
-            p1 = Particle1(x=x)
-            vx = x.derive(initial=0)
-            p2 = Particle2(x=x)
-
-    class Model(System):
-        x = Variable(initial=0)
-        vx = x.derive(initial=0)
-        p1 = Particle1(x=x)
-        p2 = Particle2(x=x)
-
-    assert Model.vx.initial == 0
+            p = Particle(x=x, vx=1)
 
 
 def test_implicit_assignment():
@@ -212,23 +116,11 @@ def test_raise_on_non_derivative():
     it would create a hidden derivative relationship.
     """
 
-    with raises(TypeError, match="initial"):
+    with raises(TypeError, match="derivative"):
 
         class WrongModel(System):
             x = Variable(initial=0)
             vx = Variable(initial=0)
-            p = Particle(
-                x=x,
-                vx=vx,  # type: ignore
-            )
-
-
-def test_raise_on_explicit_assignment():
-    with raises(TypeError, match="initial"):
-
-        class WrongModel(System):
-            x = Variable(initial=0)
-            vx = x.derive(initial=0)
             p = Particle(
                 x=x,
                 vx=vx,  # type: ignore

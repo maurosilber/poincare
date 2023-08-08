@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import ChainMap
 from typing import ClassVar, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
@@ -45,52 +44,6 @@ Number = int | float | complex
 Initial = Number | Constant
 
 
-def derive(*, variable: Variable, order: int, initial: Initial | None = None):
-    if initial is None:
-        return Derivative(variable=variable, order=order)
-    else:
-        return _create_derivative(
-            variable=variable,
-            order=order,
-            initial=initial,  # type: ignore
-            map=0,
-        )
-
-
-def _create_derivative(
-    *,
-    variable: Variable,
-    order: int,
-    initial: Initial,
-    map: int,
-) -> Derivative:
-    if not isinstance(initial, Initial):
-        raise TypeError(f"unexpected type {type(initial)} for initial")
-
-    if variable.equation_order is not None and order >= variable.equation_order:
-        raise ValueError(
-            f"already assigned an equation to order {variable.equation_order}"
-        )
-
-    if map == 0:
-        try:
-            value = variable.derivatives.maps[0][order]
-            raise ValueError(f"already assigned an initial value: {value}")
-        except KeyError:
-            variable.derivatives.maps[0][order] = initial
-    elif order in variable.derivatives.maps[0]:
-        pass
-    else:
-        try:
-            value = variable.derivatives.maps[1][order]
-            if value != initial:
-                raise ValueError(f"colliding initial value: {value}")
-        except KeyError:
-            variable.derivatives.maps[1][order] = initial
-
-    return Derivative(variable, order=order)
-
-
 def _assign_equation_order(
     *,
     variable: Variable,
@@ -100,12 +53,14 @@ def _assign_equation_order(
         raise ValueError(
             f"already assigned an equation to order {variable.equation_order}"
         )
-    elif order <= (max_order_initial := max(variable.derivatives.keys())):
-        raise ValueError(
-            f"already assigned an initial to a higher order {max_order_initial}"
-        )
-    else:
-        variable.equation_order = order
+
+    for der_order, der in variable.derivatives.items():
+        if der_order >= order and der.initial is not None:
+            raise ValueError(
+                f"already assigned an initial to a higher order {der.order}"
+            )
+
+    variable.equation_order = order
 
 
 class Parameter(Node, Scalar):
@@ -116,9 +71,6 @@ class Parameter(Node, Scalar):
 
     def _copy_from(self, parent: System):
         return self.__class__(default=NodeMapper(parent).get(self.default))
-
-    def derive(self, order: int = 1):
-        return derive(variable=self, order=1, initial=None)
 
     def __set__(self, obj, value: Initial | Symbol):
         if isinstance(value, Symbol):
@@ -143,59 +95,66 @@ class Parameter(Node, Scalar):
         return self.default == other.default and super().__eq__(other)
 
 
-class Variable(Parameter):
-    derivatives: ChainMap[int, Initial | None]
+class Variable(Node, Scalar):
+    initial: Initial | None
+    derivatives: dict[int, Derivative]
     equation_order: int | None = None
 
     def __init__(self, *, initial: Initial | None):
-        self.derivatives = ChainMap({0: initial}, {})
-        self._equations: list[Equation] = []
+        self.initial = initial
+        self.derivatives = {}
 
-    @property
-    def initial(self):
-        return self.derivatives[0]
+    def derive(self, *, initial: Initial | None = None) -> Derivative:
+        return Derivative(self, initial=initial, order=1)
 
     def _copy_from(self, parent: System):
-        copy = self.__class__(
-            initial=NodeMapper(parent).get(self.initial)
-        )  # should initial be here or in maps[1]?
-        copy.derivatives.maps[1] = self.derivatives
+        mapper = NodeMapper(parent)
+        copy = self.__class__(initial=mapper.get(self.initial))
+        for order, der in self.derivatives.items():
+            copy.derivatives[order] = Derivative(
+                copy, initial=mapper.get(der.initial), order=order
+            )
         copy.equation_order = self.equation_order
         return copy
 
-    def derive(self, *, initial: Initial | None = None) -> Derivative:
-        return derive(variable=self, order=1, initial=initial)
-
     def __set__(self, obj, value: Variable | Initial):
-        """Allows to override the annotation in System.__init__."""
-        # For:
-        # >>> class Model(System):
-        # ...   x: Variable
-        #
-        # The type hint shows:
-        # >>> Model(x: Variable | Initial) -> None
-        if isinstance(value, Variable):
-            # Replace descriptor by adding it to obj.__dict__
-            # Update derivatives initials
-            super().__set__(obj, value)
-            for order, initial in self.derivatives.items():
-                if initial is None:
-                    continue
-                _create_derivative(
-                    variable=value,
-                    order=order,
-                    initial=initial,
-                    map=1,
-                )
-            if (order := self.equation_order) is not None:
-                _assign_equation_order(variable=value, order=order)
-        elif isinstance(value, Initial):
-            # Get or create instance with getattr
-            # Update initial value
-            variable: Variable = getattr(obj, self.name)
-            variable.derivatives[0] = value
+        if not isinstance(value, Initial | Variable):
+            raise TypeError("unexpected type")
+
+        try:
+            variable = obj.__dict__[self.name]
+        except KeyError:
+            # Variable not yet created
+            if isinstance(value, Variable):
+                # Replace descriptor by adding it to obj.__dict__
+                # Update derivatives initials
+                super().__set__(obj, value)
+                if (order := self.equation_order) is not None:
+                    _assign_equation_order(variable=value, order=order)
+                for order, self_der in self.derivatives.items():
+                    if self_der.name == "":
+                        continue  # derivative taken but not assigned
+                    try:
+                        value_der = value.derivatives[order]
+                    except KeyError:
+                        raise TypeError(
+                            "must explicitly define higher order derivatives in the external Variable"
+                        )
+                    else:
+                        obj.__dict__[self_der.name] = value_der
+            elif isinstance(value, Initial):
+                # Create internal variable and update its initial
+                variable: Variable = getattr(obj, self.name)
+                variable.initial = value
         else:
-            raise TypeError(f"unexpected type {type(value)} for {self.name}")
+            # Variable already assigned (by a Derivative)
+            if isinstance(value, Variable):
+                if value is not variable:
+                    raise TypeError("wrongly assigned variable or derivative")
+            elif isinstance(value, Initial):
+                if variable.parent is not obj:
+                    raise TypeError("cannot assign initial to an external variable")
+                variable.initial = value
 
     def __hash__(self) -> int:
         return super().__hash__()
@@ -208,45 +167,78 @@ class Variable(Parameter):
 
 
 class Derivative(Node, Symbol):
+    def __new__(
+        cls,
+        variable: Variable,
+        *,
+        initial: Initial | None = None,
+        order: int,
+    ):
+        try:
+            der = variable.derivatives[order]
+        except KeyError:
+            return super().__new__(cls)
+
+        if initial is None:
+            return der
+        else:
+            raise ValueError(
+                f"already assigned an initial value to order {order} of variable {variable}"
+            )
+
     def __init__(
         self,
         variable: Variable,
         *,
-        order: int = 1,
+        initial: Initial | None = None,
+        order: int,
     ):
         self.variable = variable
+        self.initial = initial
         self.order = order
+        self.variable.derivatives[order] = self
 
     def _copy_from(self, parent: Node) -> Self:
         variable: Variable = getattr(parent, self.variable.name)
-        return Derivative(variable=variable, order=self.order)
+        return variable.derivatives[self.order]
 
-    def __set__(self, obj, value: Initial):
-        """Allows to override the annotation in System.__init__."""
-        # For:
-        # >>> class Model(System):
-        # ...   x: Derivative
-        #
-        # The type hint shows:
-        # >>> Model(x: Initial) -> None
-        if not isinstance(value, Initial):
-            raise TypeError(f"expected an initial value for {self.name}")
+    def __set__(self, obj, value: Initial | Derivative):
+        if not isinstance(value, Initial | Derivative):
+            raise TypeError("unexpected type")
 
-        # Get or create the instance variable
-        variable: Variable = getattr(obj, self.variable.name)
-        _create_derivative(
-            variable=variable,
-            order=self.order,
-            initial=value,
-            map=0,
-        )
+        # 3 cases to check:
+        # - 1. variable and derivative are internal (assigned an Initial or using default)
+        # - 2. variable and derivative are external (assigned Variable and Derivative)
+        # - 3. variable and internal are mixed internal/external -> error
+        # The order of assignment matters.
 
-    @property
-    def initial(self):
-        return self.variable.derivatives[self.order]
+        try:
+            derivative: Derivative = obj.__dict__[self.name]
+        except KeyError:
+            # derivative has not been assigned -> variable has not been assigned
+            if isinstance(value, Derivative):
+                # it refers to an outside Variable, let's assign that first
+                setattr(obj, self.variable.name, value.variable)
+            elif isinstance(value, Initial):
+                # this creates an internal variable, which will be an error
+                # if it is going to be assigned to an outside variable
+                derivative: Derivative = getattr(obj, self.name)
+                derivative.initial = value
+        else:
+            # derivative has been assigned -> variable has been assigned
+            if isinstance(value, Initial):
+                # existing derivative must be internal to replace its initial value
+                if derivative.parent is not obj:
+                    raise TypeError(
+                        "derivative corresponds to an external variable, cannot change its initial condition here."
+                    )
+                else:
+                    derivative.initial = value
+            elif isinstance(value, Derivative) and value is not derivative:
+                raise TypeError("assigned wrong derivative")
 
     def derive(self, *, initial: Initial | None = None) -> Derivative:
-        return derive(variable=self.variable, order=self.order + 1, initial=initial)
+        return Derivative(self.variable, initial=initial, order=self.order + 1)
 
     def __lshift__(self, other) -> Equation:
         _assign_equation_order(variable=self.variable, order=self.order)
@@ -382,12 +374,6 @@ class System(Node, metaclass=EagerNamer):
                     [f"{k} expected {ann} got {t}" for k, ann, t in mismatched_types]
                 )
             )
-
-        # for v in cls.yield_variables(cls, recursive=False):
-        # for eq in v._equations:
-        # if eq.parent is not cls:
-        #     raise NameError
-        # v._equations.clear()
 
     def __init__(self, *args, **kwargs):
         if len(args) > 0:

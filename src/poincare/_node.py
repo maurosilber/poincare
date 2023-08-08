@@ -33,6 +33,8 @@ class Node:
         raise NotImplementedError
 
     def __set_name__(self, cls: Node, name: str):
+        if not (self.name == "" or self.name == name):
+            raise NameError(f"cannot rename {self.name} to {name}")
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "parent", cls)
 
