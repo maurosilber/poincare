@@ -5,14 +5,22 @@ from collections import ChainMap, defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Callable, Generic, Protocol, TypeAlias, TypeVar
+from typing import Any, Callable, Generic, Iterator, Protocol, TypeAlias, TypeVar
 
 from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
 from symbolite.core import substitute
 from typing_extensions import Never
 
-from .types import Derivative, Initial, Parameter, System, Variable
+from .types import (
+    Derivative,
+    Equation,
+    EquationGroup,
+    Initial,
+    Parameter,
+    System,
+    Variable,
+)
 
 T = TypeVar("T")
 ExprRHS: TypeAlias = Initial | Symbol
@@ -83,9 +91,19 @@ def ode_vectorize(
     return expr
 
 
+def yield_equations(system: System | type[System]) -> Iterator[Equation]:
+    for v in system._yield(Equation | EquationGroup):
+        if isinstance(v, Equation):
+            yield v
+        elif isinstance(v, EquationGroup):
+            yield from v.equations
+        else:
+            assert_never(v, message="unexpected type {}")
+
+
 def get_equations(system: System | type[System]) -> dict[Derivative, list[ExprRHS]]:
     equations: dict[Derivative, list[ExprRHS]] = defaultdict(list)
-    for eq in system.yield_equations():
+    for eq in yield_equations(system):
         equations[eq.lhs].append(eq.rhs)
     return equations
 

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import ClassVar, Iterator, Literal, Sequence, TypeVar, overload
+from typing import ClassVar, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar, Symbol
 from typing_extensions import Self, dataclass_transform
 
 from ._node import Node, NodeMapper
-from ._utils import class_and_instance_method
 
 T = TypeVar("T")
 
@@ -430,15 +429,3 @@ class System(Node, metaclass=EagerNamer):
         name = self.__class__.__name__
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
-
-    @class_and_instance_method
-    def yield_variables(self, *, recursive: bool = True):
-        return self._yield(Variable, recursive=recursive)
-
-    @class_and_instance_method
-    def yield_equations(self, *, recurisve: bool = True) -> Iterator[Equation]:
-        for v in self._yield(Equation | EquationGroup, recursive=recurisve):
-            if isinstance(v, Equation):
-                yield v
-            elif isinstance(v, EquationGroup):
-                yield from v.equations
