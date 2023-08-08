@@ -180,6 +180,8 @@ class Variable(Parameter):
             # Update derivatives initials
             super().__set__(obj, value)
             for order, initial in self.derivatives.items():
+                if initial is None:
+                    continue
                 _create_derivative(
                     variable=value,
                     order=order,
