@@ -67,29 +67,7 @@ def test_second_order_equation_without_first_derivative():
     """Taking the second derivative 'directly',
     without defining the first derivative."""
 
-    class Model(System):
-        x: Variable = initial(default=0)
-        force = x.derive(initial=0.0).derive() << -x
-
-    assert is_same_variable(Model.force.lhs, Model.x.derive().derive())
-    assert Model.force.rhs == -Model.x
-
-    model = Model(x=1)
-    assert is_same_variable(model.force.lhs, model.x.derive().derive())
-    assert model.force.rhs == -model.x
-
-    for m in [Model, model]:
-        equations = get_equations(m)
-        x = m.x
-        assert equations[Derivative(x, order=x.equation_order)] == [-x]
-
-
-@mark.xfail(reason="Not implemented")
-def test_second_order_equation_without_first_derivative_2():
-    """Taking the second derivative 'directly',
-    without defining the first derivative."""
-
-    with raises(TypeError):
+    with raises(NameError, match="assign"):
 
         class Model(System):
             x: Variable = initial(default=0)

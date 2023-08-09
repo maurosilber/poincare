@@ -238,6 +238,8 @@ class Derivative(Node, Symbol):
                 raise TypeError("assigned wrong derivative")
 
     def derive(self, *, initial: Initial | None = None) -> Derivative:
+        if self.name == "":
+            raise NameError("must assign this derivative to a variable first")
         return Derivative(self.variable, initial=initial, order=self.order + 1)
 
     def __lshift__(self, other) -> Equation:
