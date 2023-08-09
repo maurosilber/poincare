@@ -10,7 +10,14 @@ from symbolite import Symbol
 from . import Constant, Derivative, Parameter, System, Variable
 from ._node import Node
 from ._utils import eval_content
-from .compile import RHS, Array, Backend, Compiled, compile
+from .compile import (
+    RHS,
+    Array,
+    Backend,
+    Compiled,
+    compile,
+    depends_on_at_least_one_variable_or_time,
+)
 from .types import Initial
 
 
@@ -56,9 +63,19 @@ class Simulator:
         self.variable_names = tuple(map(str, self.compiled.variables))
 
         self._defaults = {}
+        self._default_functions = {}
         for v in system._yield(Constant | Parameter):
-            self._defaults[v] = v.default
+            if v.default is None:
+                raise TypeError("Missing initial values. System must be instantiated.")
+            elif isinstance(v, Parameter) and depends_on_at_least_one_variable_or_time(
+                v.default
+            ):
+                self._default_functions[v] = v.default
+            else:
+                self._defaults[v] = v.default
         for v in system._yield(Variable | Derivative):
+            if v.initial is None:
+                raise TypeError("Missing initial values. System must be instantiated.")
             self._defaults[v] = v.initial
 
     def create_problem(
@@ -69,13 +86,23 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
     ):
+        if not self._default_functions.keys().isdisjoint(values.keys()):
+            raise NotImplementedError("must recompile to change assignments")
+
         content = {
             **self._defaults,
             **values,
         }
 
         assert self.compiled.libsl is not None
-        result = eval_content(content, self.compiled.libsl, Node)
+        result = eval_content(
+            content,
+            self.compiled.libsl,
+            (
+                # Scalar,  # time
+                Node,  # rest
+            ),
+        )
         y0 = np.fromiter(
             (result[k] for k in self.compiled.variables),
             dtype=float,

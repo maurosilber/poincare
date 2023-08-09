@@ -73,11 +73,9 @@ class Parameter(Node, Scalar):
         return self.__class__(default=NodeMapper(parent).get(self.default))
 
     def __set__(self, obj, value: Initial | Symbol):
-        if isinstance(value, Symbol):
-            # Replace descriptor by adding it to obj.__dict__
-            # Update derivatives initials
+        if isinstance(value, Parameter):
             super().__set__(obj, value)
-        elif isinstance(value, Initial):
+        elif isinstance(value, Initial | Symbol):
             # Get or create instance with getattr
             # Update initial value
             variable: Self = getattr(obj, self.name)

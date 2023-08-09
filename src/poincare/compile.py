@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from collections import defaultdict
+from collections import ChainMap, defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
@@ -76,14 +76,19 @@ def eqsum(eqs: list[ExprRHS]) -> scalar.NumberT | Symbol:
 
 
 def vector_mapping(
+    time: Parameter,
     variables: Sequence[Variable | Derivative],
     parameters: Sequence[Parameter],
+    time_varname: str = "t",
     state_varname: str = "y",
     param_varname: str = "p",
-) -> dict[Variable | Derivative | Parameter, vector.Vector]:
+) -> dict[Variable | Derivative | Parameter, Symbol]:
+    t = scalar.Scalar(time_varname)
     y = vector.Vector(state_varname)
     p = vector.Vector(param_varname)
-    mapping = {}
+    mapping: dict[Parameter | Variable | Derivative, Symbol] = {
+        time: t,
+    }
     for i, v in enumerate(variables):
         mapping[v] = y[i]
     for i, v in enumerate(parameters):
@@ -109,14 +114,13 @@ def get_equations(system: System | type[System]) -> dict[Derivative, list[ExprRH
 
 
 def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
-    if not hasattr(value, "yield_named"):
+    if not isinstance(value, Symbol):
         return False
+
     for named in value.yield_named():
         if named is System.simulation_time:
             return True
-        if isinstance(named, Derivative):
-            return True
-        elif isinstance(named, Variable):
+        elif isinstance(named, Variable | Derivative):
             return True
     return False
 
@@ -128,24 +132,50 @@ def get_derivative(variable: Variable, order: int) -> Variable | Derivative:
         return variable.derivatives[order]
 
 
-def build_first_order_symbolic_ode(system: System | type[System]):
+def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[dict]:
+    """Compiles equations into dicts of equations.
+
+    - variables: Variable | Derivative
+        appears in one or more equations
+    - parameters: Parameter
+        appears in one or more equations and is not a function of time or variables
+    - algebraic_equations: dict[Parameter, RHSExpr]
+        parameters that are functions of time or variables
+    - differential_equations: dict[Variable | Derivative, RHSExpr]
+        variables whose differential are functions of time or variables
+    """
+
     equations = {k: eqsum(v) for k, v in get_equations(system).items()}
 
     in_eq_parameters: set[Parameter] = set()
     in_eq_variables: set[Variable] = set()
+
+    def process_symbol(symbol):
+        if not isinstance(symbol, Symbol):
+            return
+
+        for named in symbol.yield_named():
+            if isinstance(named, Variable):
+                in_eq_variables.add(named)
+            elif isinstance(named, Parameter):
+                in_eq_parameters.add(named)
+
     for derivative, eq in equations.items():
         in_eq_variables.add(derivative.variable)
-        if isinstance(eq, Symbol):
-            for symbol in eq.yield_named():
-                if isinstance(symbol, Variable):
-                    in_eq_variables.add(symbol)
-                elif isinstance(symbol, Parameter):
-                    in_eq_parameters.add(symbol)
+        process_symbol(eq)
+
+    for p in list(in_eq_parameters):
+        process_symbol(p.default)
 
     # Algebraic equations
     # Maps variable to equation.
-    parameters = sorted(in_eq_parameters, key=str)
-    aeqs: dict[Parameter, ExprRHS] = {k: k.default for k in parameters}
+    parameters = []
+    aeqs: dict[Parameter, ExprRHS] = {}
+    for p in sorted(in_eq_parameters, key=str):
+        if depends_on_at_least_one_variable_or_time(p.default):
+            aeqs[p] = p.default
+        else:
+            parameters.append(p)
 
     # Differential equations
     # Map variable to be derived 1 time to equation.
@@ -195,9 +225,13 @@ def build_first_order_vectorized_body(
     aeqs = symbolic.param_func
     deqs = symbolic.ode_func
 
-    mapping = vector_mapping(symbolic.variables, symbolic.parameters)
+    mapping = vector_mapping(
+        System.simulation_time,
+        symbolic.variables,
+        symbolic.parameters,
+    )
     aeqs = {k: substitute(v, mapping) for k, v in aeqs.items()}
-    deqs = {k: substitute(v, mapping) for k, v in deqs.items()}
+    deqs = {k: substitute(v, ChainMap(aeqs, mapping)) for k, v in deqs.items()}
 
     def to_index(k: str) -> str:
         try:
@@ -212,25 +246,24 @@ def build_first_order_vectorized_body(
 
         raise ValueError(k)
 
-    update_param_body = [
-        assignment_func("p", to_index(k), str(eq)) for k, eq in aeqs.items()
-    ]
+    # update_param_body = [
+    #     assignment_func("p", to_index(k), str(eq)) for k, eq in aeqs.items()
+    # ]
     ode_step_body = [
         assignment_func("ydot", to_index(k), str(eq)) for k, eq in deqs.items()
     ]
 
     update_param_def = "\n    ".join(
         [
-            "def update_param(t, y, p0, p):",
-            *update_param_body,
-            "return p",
+            "def update_param(t, y, p, pf):",
+            # *update_param_body,
+            "return pf",
         ]
     )
 
     ode_step_def = "\n    ".join(
         [
             "def ode_step(t, y, p, ydot):",
-            *update_param_body,
             *ode_step_body,
             "return ydot",
         ]
