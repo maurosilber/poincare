@@ -5,7 +5,16 @@ from collections import ChainMap, defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Callable, Generic, Iterator, Protocol, TypeAlias, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterator,
+    Mapping,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+)
 
 from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
@@ -77,17 +86,17 @@ def eqsum(eqs: list[ExprRHS]) -> scalar.NumberT | Symbol:
 
 
 def vector_mapping(
-    time: Parameter,
+    time: scalar.Scalar,
     variables: Sequence[Variable | Derivative],
     parameters: Sequence[Parameter],
     time_varname: str = "t",
     state_varname: str = "y",
     param_varname: str = "p",
-) -> dict[Variable | Derivative | Parameter, Symbol]:
+) -> dict[scalar.Scalar | Variable | Derivative | Parameter, Symbol]:
     t = scalar.Scalar(time_varname)
     y = vector.Vector(state_varname)
     p = vector.Vector(param_varname)
-    mapping: dict[Parameter | Variable | Derivative, Symbol] = {
+    mapping: dict[scalar.Scalar | Parameter | Variable | Derivative, Symbol] = {
         time: t,
     }
     for i, v in enumerate(variables):
@@ -123,6 +132,10 @@ def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
             return True
         elif isinstance(named, Variable | Derivative):
             return True
+        elif isinstance(named, Parameter) and depends_on_at_least_one_variable_or_time(
+            named.default
+        ):
+            return True
     return False
 
 
@@ -148,8 +161,23 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
 
     equations = {k: eqsum(v) for k, v in get_equations(system).items()}
 
-    in_eq_parameters: set[Parameter] = set()
-    in_eq_variables: set[Variable] = set()
+    initials = {}
+    parameters: set[Parameter] = set()
+    variables: set[Variable] = set()
+    algebraic_eqs: dict[Parameter, ExprRHS] = {}
+
+    def add_to_initials(name: Symbol, value):
+        if value is None:
+            raise TypeError(
+                f"Missing initial value for {name}. System must be instantiated."
+            )
+        initials[name] = value
+        if not isinstance(value, Symbol):
+            return
+
+        for named in value.yield_named():
+            if isinstance(named, Parameter | Constant):
+                add_to_initials(named, named.default)
 
     def process_symbol(symbol):
         if not isinstance(symbol, Symbol):
@@ -157,48 +185,31 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
 
         for named in symbol.yield_named():
             if isinstance(named, Variable):
-                in_eq_variables.add(named)
+                variables.add(named)
+                for order in range(named.equation_order):
+                    der = get_derivative(named, order)
+                    add_to_initials(der, der.initial)
             elif isinstance(named, Parameter):
-                in_eq_parameters.add(named)
+                eq = named.default
+                if depends_on_at_least_one_variable_or_time(eq):
+                    algebraic_eqs[named] = eq
+                    process_symbol(eq)
+                else:
+                    parameters.add(named)
+                    add_to_initials(named, eq)
+            elif isinstance(named, Constant):
+                add_to_initials(named, named.default)
 
     for derivative, eq in equations.items():
-        in_eq_variables.add(derivative.variable)
+        process_symbol(derivative.variable)
         process_symbol(eq)
 
-    for p in list(in_eq_parameters):
-        process_symbol(p.default)
-
-    # Algebraic equations
-    # Maps variable to equation.
-    parameters = []
-    aeqs: dict[Parameter, ExprRHS] = {}
-    for p in sorted(in_eq_parameters, key=str):
-        if depends_on_at_least_one_variable_or_time(p.default):
-            aeqs[p] = p.default
-        else:
-            parameters.append(p)
-
-    defaults = {}
-    for v in system._yield(Constant | Parameter):
-        if v.default is None:
-            raise TypeError("Missing initial values. System must be instantiated.")
-        elif isinstance(v, Parameter) and depends_on_at_least_one_variable_or_time(
-            v.default
-        ):
-            pass
-        else:
-            defaults[v] = v.default
-    for v in system._yield(Variable | Derivative):
-        if v.initial is None:
-            raise TypeError("Missing initial values. System must be instantiated.")
-        defaults[v] = v.initial
-
     return Compiled(
-        variables=sorted(in_eq_variables, key=str),
+        variables=sorted(variables, key=str),
         parameters=sorted(parameters, key=str),
-        mapper=defaults,
+        mapper=initials,
         ode_func=equations,
-        param_funcs=aeqs,
+        param_funcs=algebraic_eqs,
     )
 
 
@@ -253,15 +264,14 @@ def build_first_order_vectorized_body(
     assignment_func: Callable[[str, str, str], str] = assignment,
 ) -> Compiled[str]:
     symbolic = build_first_order_symbolic_ode(system)
-    aeqs = symbolic.param_funcs
-    deqs = symbolic.ode_func
-
-    mapping = vector_mapping(
+    mapping: Mapping = vector_mapping(
         System.simulation_time,
         symbolic.variables,
         symbolic.parameters,
     )
-    deqs = {k: substitute(v, ChainMap(aeqs, mapping)) for k, v in deqs.items()}
+    aeqs = {k: substitute(v, mapping) for k, v in symbolic.param_funcs.items()}
+    mapping = ChainMap(aeqs, mapping)
+    deqs = {k: substitute(v, mapping) for k, v in symbolic.ode_func.items()}
 
     def to_index(k: str) -> str:
         try:
@@ -289,9 +299,7 @@ def build_first_order_vectorized_body(
         parameters=symbolic.parameters,
         mapper=symbolic.mapper,
         ode_func=ode_step_def,
-        param_funcs={
-            k: substitute(v, mapping) for k, v in symbolic.param_funcs.items()
-        },
+        param_funcs=aeqs,
     )
 
 
