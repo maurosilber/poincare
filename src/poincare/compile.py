@@ -133,27 +133,7 @@ def get_derivative(variable: Variable, order: int) -> Variable | Derivative:
         return variable.derivatives[order]
 
 
-def build_mapper(system: System | type[System]):
-    defaults = {}
-    default_functions = {}
-    for v in system._yield(Constant | Parameter):
-        if v.default is None:
-            raise TypeError("Missing initial values. System must be instantiated.")
-        elif isinstance(v, Parameter) and depends_on_at_least_one_variable_or_time(
-            v.default
-        ):
-            default_functions[v] = v.default
-        else:
-            defaults[v] = v.default
-    for v in system._yield(Variable | Derivative):
-        if v.initial is None:
-            raise TypeError("Missing initial values. System must be instantiated.")
-        defaults[v] = v.initial
-
-    return defaults, default_functions
-
-
-def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[dict]:
+def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
     """Compiles equations into dicts of equations.
 
     - variables: Variable | Derivative
@@ -198,37 +178,64 @@ def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[di
         else:
             parameters.append(p)
 
+    defaults = {}
+    for v in system._yield(Constant | Parameter):
+        if v.default is None:
+            raise TypeError("Missing initial values. System must be instantiated.")
+        elif isinstance(v, Parameter) and depends_on_at_least_one_variable_or_time(
+            v.default
+        ):
+            pass
+        else:
+            defaults[v] = v.default
+    for v in system._yield(Variable | Derivative):
+        if v.initial is None:
+            raise TypeError("Missing initial values. System must be instantiated.")
+        defaults[v] = v.initial
+
+    return Compiled(
+        variables=sorted(in_eq_variables, key=str),
+        parameters=sorted(parameters, key=str),
+        mapper=defaults,
+        ode_func=equations,
+        param_funcs=aeqs,
+    )
+
+
+def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[dict]:
+    maps = build_equation_maps(system)
+
     # Differential equations
     # Map variable to be derived 1 time to equation.
     # (unlike 'equations' that maps derived variable to equation)
     variables: list[Variable | Derivative] = []
     deqs: dict[Variable | Derivative, ExprRHS] = {}
-    for var in sorted(in_eq_variables, key=str):
+    for var in maps.variables:
+        var: Variable
         # For each variable
         # - create first order differential equations except for var.equation_order
         # - for the var.equation_order use the defined equation
-        assert var.equation_order is not None
-        variables.append(var)
+        if var.equation_order is None:
+            raise TypeError
 
-        for order in range(1, var.equation_order):
-            lhs = get_derivative(var, order - 1)
-            rhs = get_derivative(var, order)
+        for order in range(var.equation_order - 1):
+            lhs = get_derivative(var, order)
+            rhs = get_derivative(var, order + 1)
             deqs[lhs] = rhs
-            variables.append(rhs)
+            variables.append(lhs)
 
         order = var.equation_order
         lhs = get_derivative(var, order - 1)
-        rhs = equations[get_derivative(var, order)]
-        deqs[lhs] = rhs
+        rhs = get_derivative(var, order)
+        deqs[lhs] = maps.ode_func[rhs]
+        variables.append(lhs)
 
-    mapper, aeqfuncs = build_mapper(system)
-    assert aeqfuncs == aeqs
     return Compiled[dict](
         variables=variables,
-        parameters=parameters,
-        mapper=mapper,
+        parameters=maps.parameters,
+        mapper=maps.mapper,
         ode_func=deqs,
-        param_funcs=aeqs,
+        param_funcs=maps.param_funcs,
     )
 
 
