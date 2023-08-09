@@ -63,22 +63,6 @@ class Simulator:
         self.compiled = compile(system, backend)
         self.variable_names = tuple(map(str, self.compiled.variables))
 
-        self._defaults = {}
-        self._default_functions = {}
-        for v in system._yield(Constant | Parameter):
-            if v.default is None:
-                raise TypeError("Missing initial values. System must be instantiated.")
-            elif isinstance(v, Parameter) and depends_on_at_least_one_variable_or_time(
-                v.default
-            ):
-                self._default_functions[v] = v.default
-            else:
-                self._defaults[v] = v.default
-        for v in system._yield(Variable | Derivative):
-            if v.initial is None:
-                raise TypeError("Missing initial values. System must be instantiated.")
-            self._defaults[v] = v.initial
-
     def create_problem(
         self,
         values: dict[
@@ -87,8 +71,10 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
     ):
-        if not self._default_functions.keys().isdisjoint(values.keys()):
-            raise NotImplementedError("must recompile to change assignments")
+        if (not self.compiled.param_funcs.keys().isdisjoint(values.keys())) or any(
+            map(depends_on_at_least_one_variable_or_time, values.values())
+        ):
+            raise ValueError("must recompile to change assignments")
 
         content = ChainMap(values, self.compiled.mapper)
         assert self.compiled.libsl is not None

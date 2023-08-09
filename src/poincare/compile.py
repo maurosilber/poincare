@@ -13,6 +13,7 @@ from symbolite.core import substitute
 from typing_extensions import Never
 
 from .types import (
+    Constant,
     Derivative,
     Equation,
     EquationGroup,
@@ -132,6 +133,26 @@ def get_derivative(variable: Variable, order: int) -> Variable | Derivative:
         return variable.derivatives[order]
 
 
+def build_mapper(system: System | type[System]):
+    defaults = {}
+    default_functions = {}
+    for v in system._yield(Constant | Parameter):
+        if v.default is None:
+            raise TypeError("Missing initial values. System must be instantiated.")
+        elif isinstance(v, Parameter) and depends_on_at_least_one_variable_or_time(
+            v.default
+        ):
+            default_functions[v] = v.default
+        else:
+            defaults[v] = v.default
+    for v in system._yield(Variable | Derivative):
+        if v.initial is None:
+            raise TypeError("Missing initial values. System must be instantiated.")
+        defaults[v] = v.initial
+
+    return defaults, default_functions
+
+
 def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[dict]:
     """Compiles equations into dicts of equations.
 
@@ -200,11 +221,14 @@ def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[di
         rhs = equations[get_derivative(var, order)]
         deqs[lhs] = rhs
 
+    mapper, aeqfuncs = build_mapper(system)
+    assert aeqfuncs == aeqs
     return Compiled[dict](
         variables=variables,
         parameters=parameters,
+        mapper=mapper,
         ode_func=deqs,
-        param_func=aeqs,
+        param_funcs=aeqs,
     )
 
 
@@ -222,7 +246,7 @@ def build_first_order_vectorized_body(
     assignment_func: Callable[[str, str, str], str] = assignment,
 ) -> Compiled[str]:
     symbolic = build_first_order_symbolic_ode(system)
-    aeqs = symbolic.param_func
+    aeqs = symbolic.param_funcs
     deqs = symbolic.ode_func
 
     mapping = vector_mapping(
@@ -246,20 +270,9 @@ def build_first_order_vectorized_body(
 
         raise ValueError(k)
 
-    # update_param_body = [
-    #     assignment_func("p", to_index(k), str(eq)) for k, eq in aeqs.items()
-    # ]
     ode_step_body = [
         assignment_func("ydot", to_index(k), str(eq)) for k, eq in deqs.items()
     ]
-
-    update_param_def = "\n    ".join(
-        [
-            "def update_param(t, y, p, pf):",
-            # *update_param_body,
-            "return pf",
-        ]
-    )
 
     ode_step_def = "\n    ".join(
         [
@@ -270,10 +283,11 @@ def build_first_order_vectorized_body(
     )
 
     return Compiled(
-        symbolic.variables,
-        symbolic.parameters,
-        ode_step_def,
-        update_param_def,
+        variables=symbolic.variables,
+        parameters=symbolic.parameters,
+        mapper=symbolic.mapper,
+        ode_func=ode_step_def,
+        param_funcs=symbolic.param_funcs,
     )
 
 
@@ -286,23 +300,14 @@ def build_first_order_functions(
     vectorized = build_first_order_vectorized_body(
         system, assignment_func=assignment_func
     )
-
-    lm = symbolite_compile(
-        "\n".join(
-            [
-                vectorized.ode_func,
-                vectorized.param_func,
-            ]
-        ),
-        libsl,
-    )
-
+    lm = symbolite_compile(vectorized.ode_func, libsl)
     return Compiled(
-        vectorized.variables,
-        vectorized.parameters,
-        optimizer(lm["ode_step"]),
-        optimizer(lm["update_param"]),
-        libsl,
+        variables=vectorized.variables,
+        parameters=vectorized.parameters,
+        mapper=vectorized.mapper,
+        ode_func=optimizer(lm["ode_step"]),
+        param_funcs=vectorized.param_funcs,  # type: ignore
+        libsl=libsl,
     )
 
 
@@ -310,8 +315,9 @@ def build_first_order_functions(
 class Compiled(Generic[T]):
     variables: Sequence[Variable | Derivative]
     parameters: Sequence[Parameter]
+    mapper: dict[Constant | Variable | Parameter | Derivative, Any]
     ode_func: T
-    param_func: T
+    param_funcs: dict[Parameter, T]
     libsl: ModuleType | None = None
 
 
