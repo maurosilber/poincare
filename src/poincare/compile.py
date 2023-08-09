@@ -261,7 +261,6 @@ def build_first_order_vectorized_body(
         symbolic.variables,
         symbolic.parameters,
     )
-    aeqs = {k: substitute(v, mapping) for k, v in aeqs.items()}
     deqs = {k: substitute(v, ChainMap(aeqs, mapping)) for k, v in deqs.items()}
 
     def to_index(k: str) -> str:
@@ -277,14 +276,10 @@ def build_first_order_vectorized_body(
 
         raise ValueError(k)
 
-    ode_step_body = [
-        assignment_func("ydot", to_index(k), str(eq)) for k, eq in deqs.items()
-    ]
-
     ode_step_def = "\n    ".join(
         [
             "def ode_step(t, y, p, ydot):",
-            *ode_step_body,
+            *(assignment_func("ydot", to_index(k), str(eq)) for k, eq in deqs.items()),
             "return ydot",
         ]
     )
@@ -294,7 +289,9 @@ def build_first_order_vectorized_body(
         parameters=symbolic.parameters,
         mapper=symbolic.mapper,
         ode_func=ode_step_def,
-        param_funcs=symbolic.param_funcs,
+        param_funcs={
+            k: substitute(v, mapping) for k, v in symbolic.param_funcs.items()
+        },
     )
 
 
