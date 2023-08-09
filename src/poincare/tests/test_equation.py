@@ -221,7 +221,6 @@ def test_unassigned_equation():
             x.derive() << 0
 
 
-@mark.xfail(reason="Not yet implemented")
 def test_shadowed_equations():
     with raises(NameError):
 

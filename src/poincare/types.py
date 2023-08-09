@@ -318,6 +318,8 @@ def initial(*, default: Initial | None = None, init: bool = True) -> Variable:
 
 class OwnedNamerDict(dict):
     def __setitem__(self, key, value):
+        if key in self:
+            raise NameError(f"duplicate assignment to the same name {key}")
         if isinstance(value, Node):
             value.__set_name__(None, key)
         return super().__setitem__(key, value)
