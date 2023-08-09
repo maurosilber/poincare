@@ -4,9 +4,10 @@ from typing import (
     Any,
     Callable,
     Concatenate,
-    Generator,
     Generic,
     Hashable,
+    Iterator,
+    Mapping,
     ParamSpec,
     TypeVar,
     overload,
@@ -42,9 +43,7 @@ class class_and_instance_method(Generic[S, P, R]):
 TH = TypeVar("TH", bound=Hashable)
 
 
-def solve_dependencies(
-    dependencies: dict[TH, set[TH]]
-) -> Generator[set[TH], None, None]:
+def solve_dependencies(dependencies: Mapping[TH, set[TH]]) -> Iterator[set[TH]]:
     """Solve a dependency graph.
 
     Parameters
@@ -82,7 +81,9 @@ def solve_dependencies(
 
 
 def eval_content(
-    content: dict[TH, Any], libsl: ModuleType, used_types: tuple[type, ...]
+    content: Mapping[TH, Any],
+    libsl: ModuleType,
+    used_types: tuple[type, ...],
 ) -> dict[TH, scalar.NumberT]:
     def f(val):
         return isinstance(val, used_types)

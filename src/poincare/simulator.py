@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import ChainMap
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -89,20 +90,9 @@ class Simulator:
         if not self._default_functions.keys().isdisjoint(values.keys()):
             raise NotImplementedError("must recompile to change assignments")
 
-        content = {
-            **self._defaults,
-            **values,
-        }
-
+        content = ChainMap(values, self.compiled.mapper)
         assert self.compiled.libsl is not None
-        result = eval_content(
-            content,
-            self.compiled.libsl,
-            (
-                # Scalar,  # time
-                Node,  # rest
-            ),
-        )
+        result = eval_content(content, self.compiled.libsl, Node)
         y0 = np.fromiter(
             (result[k] for k in self.compiled.variables),
             dtype=float,
