@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from types import UnionType
-from typing import Iterator, TypeVar
+from typing import Iterator, TypeAlias, TypeVar
 
 from typing_extensions import Self
 
 from ._utils import class_and_instance_method
 
 T = TypeVar("T")
+
+
+_ClassInfo: TypeAlias = type | UnionType | tuple["_ClassInfo", ...]
 
 
 class Node:
@@ -81,10 +84,10 @@ class Node:
     @class_and_instance_method
     def _yield(
         self,
-        type: type[T] | UnionType | tuple[type[T], ...],
+        type: type[T],
         /,
         *,
-        exclude: type | UnionType | tuple[type, ...] = (),
+        exclude: _ClassInfo = (),
         recursive: bool = True,
     ) -> Iterator[T]:
         if isinstance(self, Node):
