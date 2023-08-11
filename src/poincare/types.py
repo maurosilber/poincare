@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import ClassVar, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
@@ -257,11 +258,10 @@ class Derivative(Node, Symbol):
         return f"D({self.variable.name}, {self.order})"
 
 
+@dataclass
 class Equation(Node):
-    def __init__(self, lhs: Derivative, rhs: Initial | Symbol):
-        self.lhs = lhs
-        self.rhs = rhs
-        # self.lhs.variable._equations.append(self)
+    lhs: Derivative
+    rhs: Initial | Symbol
 
     def _copy_from(self, parent: System):
         variable = getattr(parent, self.lhs.variable.name)
@@ -274,7 +274,11 @@ class Equation(Node):
     def __repr__(self):
         return f"Equation({self.lhs} << {self.rhs})"
 
+    def __hash__(self) -> int:
+        return super().__hash__()
 
+
+@dataclass
 class EquationGroup(Node):
     equations: Sequence[Equation]
 
@@ -283,6 +287,9 @@ class EquationGroup(Node):
 
     def _copy_from(self, parent: System):
         return self.__class__(*(eq._copy_from(parent) for eq in self.equations))
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
 
 @overload
