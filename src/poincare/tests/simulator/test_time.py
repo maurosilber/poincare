@@ -3,7 +3,12 @@ from pytest import raises
 from ...simulator import Simulator
 from ...types import Constant, Parameter, System, Variable, assign, initial
 
-t = System.simulation_time
+
+def test_unique_time():
+    class Model(System):
+        pass
+
+    assert Model.time is Model().time
 
 
 def test_no_time_dependent_parameters():
@@ -20,6 +25,8 @@ def test_no_time_dependent_parameters():
 
     sim.create_problem(values={Model.p: 1})
 
+    t = Model.time
+
     with raises(ValueError, match="recompile"):
         sim.create_problem(values={Model.p: t})
 
@@ -27,6 +34,8 @@ def test_no_time_dependent_parameters():
 
 
 def test_time_dependent_parameters():
+    t = System.time
+
     class Model(System):
         p: Parameter = assign(default=t)
         x: Variable = initial(default=0)
@@ -60,6 +69,7 @@ def test_variable_dependent_parameters():
     with raises(ValueError, match="recompile"):
         sim.create_problem(values={Model.p: 1})
 
+    t = Model.time
     with raises(ValueError, match="recompile"):
         sim.create_problem(values={Model.p: t})
 
@@ -83,6 +93,7 @@ def test_parameter_dependent_parameters():
     assert sim.create_problem(values={Model.p0: 1}).p[0] == 1
 
     # must recompile to assign a function to p or p0
+    t = Model.time
     with raises(ValueError, match="recompile"):
         sim.create_problem(values={Model.p: t})
 

@@ -4,7 +4,7 @@ from poincare import Derivative, Parameter, System, Variable, assign, initial
 from poincare.simulator import Simulator
 from symbolite import scalar
 
-t = System.simulation_time
+t = System.time
 
 
 class Oscillator(System):

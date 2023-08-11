@@ -15,7 +15,6 @@ from .compile import (
     RHS,
     Array,
     Backend,
-    Compiled,
     compile,
     depends_on_at_least_one_variable_or_time,
 )
@@ -47,11 +46,6 @@ class Solution:
 
 
 class Simulator:
-    model = System | type[System]
-    compiled = Compiled[RHS]
-
-    _defaults: dict[Constant | Parameter | Variable | Derivative, Initial | Symbol]
-
     def __init__(
         self,
         system: System | type[System],
@@ -71,8 +65,12 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
     ):
+        time = self.model.time
         if (not self.compiled.param_funcs.keys().isdisjoint(values.keys())) or any(
-            map(depends_on_at_least_one_variable_or_time, values.values())
+            (
+                depends_on_at_least_one_variable_or_time(v, time=time)
+                for v in values.values()
+            )
         ):
             raise ValueError("must recompile to change assignments")
 

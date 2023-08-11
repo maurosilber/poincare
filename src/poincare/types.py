@@ -4,19 +4,64 @@ from dataclasses import dataclass
 from typing import ClassVar, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
+import pint
 from symbolite import Scalar, Symbol
+from symbolite.core import evaluate
+from symbolite.impl import libstd
 from typing_extensions import Self, dataclass_transform
 
 from ._node import Node, NodeMapper
 
 T = TypeVar("T")
 
-SimulationTime = Scalar("SimulationTime", namespace="poincare")
+
+def check_equations_units(lhs: Derivative, rhs):
+    order = 0
+    if (value := lhs.variable.initial) is None:
+        # Maybe a derivative has a unit already assigned
+        for order, der in lhs.variable.derivatives.items():
+            if (value := der.initial) is not None:
+                break
+        else:
+            # No unit assigned. Only check that rhs is consistent.
+            evaluate(rhs)
+            return
+
+    value = evaluate(value)
+    rhs = evaluate(rhs)
+    if rhs is None:
+        return
+    if isinstance(value, pint.Quantity):
+        time = value._REGISTRY.s
+    elif isinstance(rhs, pint.Quantity):
+        time = rhs._REGISTRY.s
+    else:
+        return
+
+    value / time ** (order + 1) - rhs  # check units
+    return
+
+
+def check_units(var, value):
+    lhs = evaluate(var)
+    rhs = evaluate(value)
+
+    if lhs is not None and rhs is not None:
+        lhs - rhs  # must have same units
+        return
+
+
+def check_derivative_units(derivative: Derivative, value):
+    check_units(derivative, value)
+    check_equations_units(derivative, value)
 
 
 class Constant(Node, Scalar):
     def __init__(self, *, default: Initial | None):
         self.default = default
+
+    def eval(self, libsl=libstd):
+        return evaluate(self.default, libsl)
 
     def _copy_from(self, parent: System):
         return self.__class__(default=NodeMapper(parent).get(self.default))
@@ -36,13 +81,14 @@ class Constant(Node, Scalar):
         elif isinstance(value, Initial):
             # Get or create instance with getattr
             constant: Constant = getattr(obj, self.name)
+            check_units(constant, value)
             constant.default = value
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
 
 
 Number = int | float | complex
-Initial = Number | Constant
+Initial = Number | Constant | pint.Quantity
 
 
 def _assign_equation_order(
@@ -70,16 +116,20 @@ class Parameter(Node, Scalar):
     def __init__(self, *, default: Initial | Symbol | None):
         self.default = default
 
+    def eval(self, libsl=libstd):
+        return evaluate(self.default, libsl)
+
     def _copy_from(self, parent: System):
         return self.__class__(default=NodeMapper(parent).get(self.default))
 
     def __set__(self, obj, value: Initial | Symbol):
-        if isinstance(value, Parameter):
+        if isinstance(value, Parameter) and not isinstance(value, Time):
             super().__set__(obj, value)
         elif isinstance(value, Initial | Symbol):
             # Get or create instance with getattr
             # Update initial value
             variable: Self = getattr(obj, self.name)
+            check_units(variable, value)
             variable.default = value
         else:
             raise TypeError(f"unexpected type {type(value)} for {self.name}")
@@ -102,6 +152,10 @@ class Variable(Node, Scalar):
     def __init__(self, *, initial: Initial | None):
         self.initial = initial
         self.derivatives = {}
+        check_units(self, initial)
+
+    def eval(self, libsl=libstd):
+        return evaluate(self.initial, libsl)
 
     def derive(self, *, initial: Initial | None = None) -> Derivative:
         return Derivative(self, initial=initial, order=1)
@@ -144,6 +198,7 @@ class Variable(Node, Scalar):
             elif isinstance(value, Initial):
                 # Create internal variable and update its initial
                 variable: Variable = getattr(obj, self.name)
+                check_units(variable, value)
                 variable.initial = value
         else:
             # Variable already assigned (by a Derivative)
@@ -193,9 +248,13 @@ class Derivative(Node, Symbol):
         order: int,
     ):
         self.variable = variable
-        self.initial = initial
         self.order = order
+        self.initial = initial
+        check_derivative_units(self, initial)
         self.variable.derivatives[order] = self
+
+    def eval(self, libsl=libstd):
+        return evaluate(self.initial, libsl)
 
     def _copy_from(self, parent: Node) -> Self:
         variable: Variable = getattr(parent, self.variable.name)
@@ -222,6 +281,7 @@ class Derivative(Node, Symbol):
                 # this creates an internal variable, which will be an error
                 # if it is going to be assigned to an outside variable
                 derivative: Derivative = getattr(obj, self.name)
+                check_derivative_units(derivative, value)
                 derivative.initial = value
         else:
             # derivative has been assigned -> variable has been assigned
@@ -232,6 +292,7 @@ class Derivative(Node, Symbol):
                         "derivative corresponds to an external variable, cannot change its initial condition here."
                     )
                 else:
+                    check_derivative_units(derivative, value)
                     derivative.initial = value
             elif isinstance(value, Derivative) and value is not derivative:
                 raise TypeError("assigned wrong derivative")
@@ -243,7 +304,7 @@ class Derivative(Node, Symbol):
 
     def __lshift__(self, other) -> Equation:
         _assign_equation_order(variable=self.variable, order=self.order)
-        return Equation(Derivative(self.variable, order=self.order), other)
+        return Equation(self, other)
 
     def __hash__(self) -> int:
         return hash((self.variable, self.order))
@@ -262,6 +323,9 @@ class Derivative(Node, Symbol):
 class Equation(Node):
     lhs: Derivative
     rhs: Initial | Symbol
+
+    def __post_init__(self):
+        check_equations_units(self.lhs, self.rhs)
 
     def _copy_from(self, parent: System):
         variable = getattr(parent, self.lhs.variable.name)
@@ -323,6 +387,17 @@ def initial(*, default: Initial | None = None, init: bool = True) -> Variable:
     return Variable(initial=default)
 
 
+class Time(Parameter):
+    def _copy_from(self, parent: System):
+        raise NotImplementedError
+
+    def __get__(self, obj, cls):
+        return self
+
+    def __set__(self, obj, value: Initial | Symbol):
+        raise TypeError("cannot modify time")
+
+
 class OwnedNamerDict(dict):
     def __setitem__(self, key, value):
         if key in self:
@@ -352,11 +427,11 @@ class EagerNamer(type):
     ),
 )
 class System(Node, metaclass=EagerNamer):
+    parent: System
+    time = Time(default=0)
     _kwargs: dict
     _required: ClassVar[set[str]]
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
-
-    simulation_time = SimulationTime
 
     def __init_subclass__(cls) -> None:
         cls._annotations = get_annotations(cls)

@@ -123,17 +123,18 @@ def get_equations(system: System | type[System]) -> dict[Derivative, list[ExprRH
     return equations
 
 
-def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
+def depends_on_at_least_one_variable_or_time(value: Any, *, time: Parameter) -> bool:
     if not isinstance(value, Symbol):
         return False
 
     for named in value.yield_named():
-        if named is System.simulation_time:
+        if named is time:
             return True
         elif isinstance(named, Variable | Derivative):
             return True
         elif isinstance(named, Parameter) and depends_on_at_least_one_variable_or_time(
-            named.default
+            named.default,
+            time=time,
         ):
             return True
     return False
@@ -166,7 +167,7 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
     variables: set[Variable] = set()
     algebraic_eqs: dict[Parameter, ExprRHS] = {}
 
-    def add_to_initials(name: Symbol, value):
+    def add_to_initials(name: Symbol, value, *, time: Parameter):
         if value is None:
             raise TypeError(
                 f"Missing initial value for {name}. System must be instantiated."
@@ -176,31 +177,36 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
             return
 
         for named in value.yield_named():
+            if named is time:
+                continue
             if isinstance(named, Parameter | Constant):
-                add_to_initials(named, named.default)
+                add_to_initials(named, named.default, time=time)
 
-    def process_symbol(symbol):
+    def process_symbol(symbol, *, time: Parameter):
         if not isinstance(symbol, Symbol):
             return
 
         for named in symbol.yield_named():
-            if isinstance(named, Variable):
+            if named is time:
+                continue
+            elif isinstance(named, Variable):
                 variables.add(named)
                 for order in range(named.equation_order):
                     der = get_derivative(named, order)
-                    add_to_initials(der, der.initial)
+                    add_to_initials(der, der.initial, time=time)
             elif isinstance(
                 named, Parameter
-            ) and depends_on_at_least_one_variable_or_time(named.default):
+            ) and depends_on_at_least_one_variable_or_time(named.default, time=time):
                 algebraic_eqs[named] = named.default
-                process_symbol(named.default)
+                process_symbol(named.default, time=time)
             elif isinstance(named, Constant | Parameter):
                 parameters.add(named)
-                add_to_initials(named, named.default)
+                add_to_initials(named, named.default, time=time)
 
+    time = system.time
     for derivative, eq in equations.items():
-        process_symbol(derivative.variable)
-        process_symbol(eq)
+        process_symbol(derivative.variable, time=time)
+        process_symbol(eq, time=time)
 
     return Compiled(
         variables=sorted(variables, key=str),
@@ -263,7 +269,7 @@ def build_first_order_vectorized_body(
 ) -> Compiled[str]:
     symbolic = build_first_order_symbolic_ode(system)
     mapping: Mapping = vector_mapping(
-        System.simulation_time,
+        system.time,
         symbolic.variables,
         symbolic.parameters,
     )
