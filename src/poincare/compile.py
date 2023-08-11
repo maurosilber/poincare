@@ -189,15 +189,13 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
                 for order in range(named.equation_order):
                     der = get_derivative(named, order)
                     add_to_initials(der, der.initial)
-            elif isinstance(named, Parameter):
-                eq = named.default
-                if depends_on_at_least_one_variable_or_time(eq):
-                    algebraic_eqs[named] = eq
-                    process_symbol(eq)
-                else:
-                    parameters.add(named)
-                    add_to_initials(named, eq)
-            elif isinstance(named, Constant):
+            elif isinstance(
+                named, Parameter
+            ) and depends_on_at_least_one_variable_or_time(named.default):
+                algebraic_eqs[named] = named.default
+                process_symbol(named.default)
+            elif isinstance(named, Constant | Parameter):
+                parameters.add(named)
                 add_to_initials(named, named.default)
 
     for derivative, eq in equations.items():
