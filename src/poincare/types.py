@@ -12,7 +12,7 @@ from ._node import Node, NodeMapper
 
 T = TypeVar("T")
 
-SimulationTime = Scalar("SimulationTime", namespace="poincare")
+SimulationTime = Scalar("SimulationTime")
 
 
 class Constant(Node, Scalar):

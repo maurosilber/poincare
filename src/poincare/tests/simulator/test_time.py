@@ -113,15 +113,20 @@ def test_parameter_dependent_parameters():
 
 
 def test_parameter_dependent_parameters2():
-    t = System.simulation_time
-
     class Model(System):
-        p0: Parameter = assign(default=t)
-        p: Parameter = assign(default=t * p0)
+        p0: Parameter = assign(default=0)
+        p1: Parameter = assign(default=p0)
+        p: Parameter = assign(default=p0 * p1)
         x: Variable = initial(default=0)
         eq = x.derive() << p
 
     sim = Simulator(Model)
     sim.solve(times=range(2))
+    assert set(sim.compiled.parameters) == {Model.p}
+    assert {Model.x, Model.p, Model.p1, Model.p0} == sim.compiled.mapper.keys()
+
+    model = Model(p0=System.simulation_time)
+    sim = Simulator(model)
+    sim.solve(times=range(2))
     assert len(sim.compiled.parameters) == 0
-    assert {Model.x} == sim.compiled.mapper.keys()
+    assert {model.x} == sim.compiled.mapper.keys()
