@@ -11,8 +11,13 @@ from symbolite.impl import libstd
 from typing_extensions import Self, dataclass_transform
 
 from ._node import Node, NodeMapper
+from .units import register_with_pint
 
 T = TypeVar("T")
+
+
+register_with_pint(Symbol)
+register_with_pint(Scalar)
 
 
 def check_equations_units(lhs: Derivative, rhs):
@@ -56,6 +61,7 @@ def check_derivative_units(derivative: Derivative, value):
     check_equations_units(derivative, value)
 
 
+@register_with_pint
 class Constant(Node, Scalar):
     def __init__(self, *, default: Initial | None):
         self.default = default
@@ -110,6 +116,7 @@ def _assign_equation_order(
     variable.equation_order = order
 
 
+@register_with_pint
 class Parameter(Node, Scalar):
     equation_order: int = 0
 
@@ -144,6 +151,7 @@ class Parameter(Node, Scalar):
         return self.default == other.default and super().__eq__(other)
 
 
+@register_with_pint
 class Variable(Node, Scalar):
     initial: Initial | None
     derivatives: dict[int, Derivative]
@@ -220,6 +228,7 @@ class Variable(Node, Scalar):
         return self.initial == other.initial and super().__eq__(other)
 
 
+@register_with_pint
 class Derivative(Node, Symbol):
     def __new__(
         cls,
@@ -387,6 +396,7 @@ def initial(*, default: Initial | None = None, init: bool = True) -> Variable:
     return Variable(initial=default)
 
 
+@register_with_pint
 class Time(Parameter):
     def _copy_from(self, parent: System):
         raise NotImplementedError

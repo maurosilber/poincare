@@ -1,9 +1,24 @@
 from pint import DimensionalityError, UnitRegistry
 from poincare import Constant, Derivative, Parameter, System, Variable, assign, initial
 from poincare.types import Time
-from pytest import raises
+from pytest import mark, raises
 
 u = UnitRegistry()
+
+
+@mark.parametrize(
+    "value",
+    [
+        Time(default=1 * u.s),
+        Constant(default=1 * u.s),
+        Parameter(default=1 * u.s),
+        Variable(initial=1 * u.s),
+    ],
+)
+def test_symbol_and_quantity(value):
+    left = value + 1 * u.s
+    right = 1 * u.s + value
+    assert left.eval() == right.eval()
 
 
 def test_single_constant():
