@@ -17,7 +17,6 @@ T = TypeVar("T")
 
 
 register_with_pint(Symbol)
-register_with_pint(Scalar)
 
 
 def check_equations_units(lhs: Derivative, rhs):

@@ -16,8 +16,14 @@ u = UnitRegistry()
     ],
 )
 def test_symbol_and_quantity(value):
-    left = value + 1 * u.s
-    right = 1 * u.s + value
+    q = 1 * u.s
+
+    left = value + q
+    right = q + value
+    assert left.eval() == right.eval()
+
+    left = left + q
+    right = q + right
     assert left.eval() == right.eval()
 
 
