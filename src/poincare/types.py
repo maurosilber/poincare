@@ -5,6 +5,7 @@ from typing import ClassVar, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
 from symbolite import Scalar, Symbol
+from symbolite.core import substitute
 from typing_extensions import Self, dataclass_transform
 
 from ._node import Node, NodeMapper
@@ -19,7 +20,7 @@ class Constant(Node, Scalar):
         self.default = default
 
     def _copy_from(self, parent: System):
-        return self.__class__(default=NodeMapper(parent).get(self.default))
+        return self.__class__(default=substitute(self.default, NodeMapper(parent)))
 
     def __eq__(self, other: Self):
         if other.__class__ is not self.__class__:
@@ -71,7 +72,7 @@ class Parameter(Node, Scalar):
         self.default = default
 
     def _copy_from(self, parent: System):
-        return self.__class__(default=NodeMapper(parent).get(self.default))
+        return self.__class__(default=substitute(self.default, NodeMapper(parent)))
 
     def __set__(self, obj, value: Initial | Symbol):
         if isinstance(value, Parameter):
@@ -108,10 +109,10 @@ class Variable(Node, Scalar):
 
     def _copy_from(self, parent: System):
         mapper = NodeMapper(parent)
-        copy = self.__class__(initial=mapper.get(self.initial))
+        copy = self.__class__(initial=substitute(self.initial, mapper))
         for order, der in self.derivatives.items():
             copy.derivatives[order] = Derivative(
-                copy, initial=mapper.get(der.initial), order=order
+                copy, initial=substitute(der.initial, mapper), order=order
             )
         copy.equation_order = self.equation_order
         return copy
@@ -405,7 +406,7 @@ class System(Node, metaclass=EagerNamer):
         # which were saved in self._kwargs,
         # with the ones from the corresponding instance
         mapper = NodeMapper(parent)
-        kwargs = {k: mapper.get(v, v) for k, v in self._kwargs.items()}
+        kwargs = {k: substitute(v, mapper) for k, v in self._kwargs.items()}
         return self.__class__(**kwargs)
 
     def __eq__(self, other: Self):
