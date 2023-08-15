@@ -92,7 +92,9 @@ def eval_content(
 
     dependencies = defaultdict(set)
     for k, v in content.items():
-        if isinstance(v, scalar.NumberT):
+        if k is v:
+            out[k] = v
+        elif isinstance(v, scalar.NumberT):
             out[k] = v
         else:
             for el in filter(f, inspect(v).keys()):

@@ -16,11 +16,14 @@ from typing import (
     TypeVar,
 )
 
+import symbolite.abstract as libabstract
 from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
 from symbolite.core import substitute
 from typing_extensions import Never
 
+from ._node import Node
+from ._utils import eval_content
 from .types import (
     Constant,
     Derivative,
@@ -222,9 +225,19 @@ def build_equation_maps(
         process_symbol(derivative.variable)
         process_symbol(eq)
 
-    # TODO: Could this lead to cycleS? An algebraic equation depending on another
-    # and not being replaced?
-    equations = {k: substitute(v, algebraic) for k, v in equations.items()}
+    content = {
+        **equations,
+        **algebraic,
+        **{p: p for p in parameters},
+        **{v: v for v in variables},
+    }
+    content = eval_content(
+        content,
+        libabstract,
+        Node,
+    )
+
+    equations = {k: content[k] for k in equations.keys()}
     sorted_variables = sorted(variables, key=str)
     return Compiled(
         variables=sorted_variables,
@@ -294,10 +307,7 @@ def build_first_order_vectorized_body(
         symbolic.parameters,
     )
 
-    diff_eqs = {}
-    for k, v in symbolic.func.items():
-        if not isinstance(k, Parameter):
-            diff_eqs[k] = substitute(v, mapping)
+    diff_eqs = {k: substitute(v, mapping) for k, v in symbolic.func.items()}
 
     def to_index(k: str) -> str:
         try:
