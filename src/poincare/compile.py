@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from collections import ChainMap, defaultdict
+from collections import defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
 from types import ModuleType
@@ -32,7 +32,8 @@ from .types import (
     Variable,
 )
 
-T = TypeVar("T")
+V = TypeVar("V")
+F = TypeVar("F")
 ExprRHS: TypeAlias = Initial | Symbol
 Array: TypeAlias = Sequence[float]
 MutableArray: TypeAlias = MutableSequence[float]
@@ -43,8 +44,23 @@ class RHS(Protocol):
         ...
 
 
-def identity(fn: RHS) -> RHS:
-    return fn
+class Transform(Protocol):
+    def __call__(self, t: float, y: Array, p: Array, out: MutableArray) -> Array:
+        ...
+
+
+@dataclass(frozen=True, kw_only=True)
+class Compiled(Generic[V, F]):
+    variables: Sequence[V]
+    parameters: Sequence[Symbol]
+    mapper: dict[Symbol, Any]
+    func: F
+    output_names: Sequence[str]
+    libsl: ModuleType | None = None
+
+
+def identity(x):
+    return x
 
 
 class Backend(enum.Enum):
@@ -146,7 +162,9 @@ def get_derivative(variable: Variable, order: int) -> Variable | Derivative:
         return variable.derivatives[order]
 
 
-def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
+def build_equation_maps(
+    system: System | type[System],
+) -> Compiled[Variable, dict[Derivative, ExprRHS]]:
     """Compiles equations into dicts of equations.
 
     - variables: Variable | Derivative
@@ -159,12 +177,14 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
         variables whose differential are functions of time or variables
     """
 
-    equations = {k: eqsum(v) for k, v in get_equations(system).items()}
+    algebraic: dict[Parameter, ExprRHS] = {}
+    equations: dict[Derivative, ExprRHS] = {
+        k: eqsum(v) for k, v in get_equations(system).items()
+    }
 
     initials = {}
     parameters: set[Parameter] = set()
     variables: set[Variable] = set()
-    algebraic_eqs: dict[Parameter, ExprRHS] = {}
 
     def add_to_initials(name: Symbol, value):
         if value is None:
@@ -192,7 +212,7 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
             elif isinstance(
                 named, Parameter
             ) and depends_on_at_least_one_variable_or_time(named.default):
-                algebraic_eqs[named] = named.default
+                algebraic[named] = named.default
                 process_symbol(named.default)
             elif isinstance(named, Constant | Parameter):
                 parameters.add(named)
@@ -202,23 +222,29 @@ def build_equation_maps(system: System | type[System]) -> Compiled[dict]:
         process_symbol(derivative.variable)
         process_symbol(eq)
 
+    # TODO: Could this lead to cycleS? An algebraic equation depending on another
+    # and not being replaced?
+    equations = {k: substitute(v, algebraic) for k, v in equations.items()}
+    sorted_variables = sorted(variables, key=str)
     return Compiled(
-        variables=sorted(variables, key=str),
+        variables=sorted_variables,
         parameters=sorted(parameters, key=str),
         mapper=initials,
-        ode_func=equations,
-        param_funcs=algebraic_eqs,
+        func=equations,
+        output_names=tuple(map(str, sorted_variables)),
     )
 
 
-def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[dict]:
+def build_first_order_symbolic_ode(
+    system: System | type[System],
+) -> Compiled[Variable | Derivative, dict[Variable | Derivative, ExprRHS]]:
     maps = build_equation_maps(system)
 
     # Differential equations
     # Map variable to be derived 1 time to equation.
     # (unlike 'equations' that maps derived variable to equation)
     variables: list[Variable | Derivative] = []
-    deqs: dict[Variable | Derivative, ExprRHS] = {}
+    diff_eqs: dict[Variable | Derivative, ExprRHS] = {}
     for var in maps.variables:
         var: Variable
         # For each variable
@@ -230,21 +256,21 @@ def build_first_order_symbolic_ode(system: System | type[System]) -> Compiled[di
         for order in range(var.equation_order - 1):
             lhs = get_derivative(var, order)
             rhs = get_derivative(var, order + 1)
-            deqs[lhs] = rhs
+            diff_eqs[lhs] = rhs
             variables.append(lhs)
 
         order = var.equation_order
         lhs = get_derivative(var, order - 1)
         rhs = get_derivative(var, order)
-        deqs[lhs] = maps.ode_func[rhs]
+        diff_eqs[lhs] = maps.func[rhs]
         variables.append(lhs)
 
-    return Compiled[dict](
+    return Compiled(
         variables=variables,
+        output_names=tuple(map(str, variables)),
+        func=diff_eqs,
         parameters=maps.parameters,
         mapper=maps.mapper,
-        ode_func=deqs,
-        param_funcs=maps.param_funcs,
     )
 
 
@@ -260,16 +286,18 @@ def build_first_order_vectorized_body(
     system: System | type[System],
     *,
     assignment_func: Callable[[str, str, str], str] = assignment,
-) -> Compiled[str]:
+) -> Compiled[Variable | Derivative, str]:
     symbolic = build_first_order_symbolic_ode(system)
     mapping: Mapping = vector_mapping(
         System.simulation_time,
         symbolic.variables,
         symbolic.parameters,
     )
-    aeqs = {k: substitute(v, mapping) for k, v in symbolic.param_funcs.items()}
-    mapping = ChainMap(aeqs, mapping)
-    deqs = {k: substitute(v, mapping) for k, v in symbolic.ode_func.items()}
+
+    diff_eqs = {}
+    for k, v in symbolic.func.items():
+        if not isinstance(k, Parameter):
+            diff_eqs[k] = substitute(v, mapping)
 
     def to_index(k: str) -> str:
         try:
@@ -287,7 +315,10 @@ def build_first_order_vectorized_body(
     ode_step_def = "\n    ".join(
         [
             "def ode_step(t, y, p, ydot):",
-            *(assignment_func("ydot", to_index(k), str(eq)) for k, eq in deqs.items()),
+            *(
+                assignment_func("ydot", to_index(k), str(eq))
+                for k, eq in diff_eqs.items()
+            ),
             "return ydot",
         ]
     )
@@ -296,8 +327,8 @@ def build_first_order_vectorized_body(
         variables=symbolic.variables,
         parameters=symbolic.parameters,
         mapper=symbolic.mapper,
-        ode_func=ode_step_def,
-        param_funcs=aeqs,
+        func=ode_step_def,
+        output_names=symbolic.output_names,
     )
 
 
@@ -306,35 +337,25 @@ def build_first_order_functions(
     libsl: ModuleType,
     optimizer: Callable[[RHS], RHS] = identity,
     assignment_func: Callable[[str, str, str], str] = assignment,
-) -> Compiled[RHS]:
+) -> Compiled[Variable | Derivative, RHS]:
     vectorized = build_first_order_vectorized_body(
         system, assignment_func=assignment_func
     )
-    lm = symbolite_compile(vectorized.ode_func, libsl)
+    lm = symbolite_compile(vectorized.func, libsl)
     return Compiled(
         variables=vectorized.variables,
         parameters=vectorized.parameters,
         mapper=vectorized.mapper,
-        ode_func=optimizer(lm["ode_step"]),
-        param_funcs=vectorized.param_funcs,  # type: ignore
+        func=optimizer(lm["ode_step"]),
+        output_names=vectorized.output_names,
         libsl=libsl,
     )
 
 
-@dataclass(frozen=True)
-class Compiled(Generic[T]):
-    variables: Sequence[Variable | Derivative]
-    parameters: Sequence[Parameter]
-    mapper: dict[Constant | Variable | Parameter | Derivative, Any]
-    ode_func: T
-    param_funcs: dict[Parameter, T]
-    libsl: ModuleType | None = None
-
-
-def compile(
+def compile_diffeq(
     system: System | type[System],
     backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA,
-) -> Compiled[RHS]:
+) -> Compiled[Variable | Derivative, RHS]:
     libsl = Backend.get_libsl(backend)
 
     optimizer_fun = identity

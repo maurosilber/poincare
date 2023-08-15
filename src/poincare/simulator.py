@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import ChainMap
 from dataclasses import dataclass
-from typing import Protocol
 
 import numpy as np
 import pandas as pd
@@ -16,19 +15,11 @@ from .compile import (
     Array,
     Backend,
     Compiled,
-    compile,
+    Transform,
+    compile_diffeq,
     depends_on_at_least_one_variable_or_time,
 )
 from .types import Initial
-
-
-class Transform(Protocol):
-    def __call__(self, t: float, y: Array, p: Array) -> Array:
-        ...
-
-
-def identity(t: float, y: Array, p: Array) -> Array:
-    return y
 
 
 @dataclass
@@ -37,7 +28,7 @@ class Problem:
     t: tuple[float, float]
     y: Array
     p: Array
-    transform: Transform = identity
+    transform: Transform
 
 
 @dataclass
@@ -48,9 +39,8 @@ class Solution:
 
 class Simulator:
     model = System | type[System]
-    compiled = Compiled[RHS]
-
-    _defaults: dict[Constant | Parameter | Variable | Derivative, Initial | Symbol]
+    compiled: Compiled[Variable | Derivative, Parameter, RHS]
+    transform: Compiled[Variable | Derivative, Parameter, Transform]
 
     def __init__(
         self,
@@ -60,8 +50,7 @@ class Simulator:
         backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY,
     ):
         self.model = system
-        self.compiled = compile(system, backend)
-        self.variable_names = tuple(map(str, self.compiled.variables))
+        self.compiled = compile_diffeq(system, backend)
 
     def create_problem(
         self,
@@ -71,7 +60,7 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
     ):
-        if (not self.compiled.param_funcs.keys().isdisjoint(values.keys())) or any(
+        if len(values.keys() - self.compiled.mapper) > 0 or any(
             map(depends_on_at_least_one_variable_or_time, values.values())
         ):
             raise ValueError("must recompile to change assignments")
@@ -89,11 +78,13 @@ class Simulator:
             dtype=float,
             count=len(self.compiled.parameters),
         )
-        return Problem(self.compiled.ode_func, t_span, y0, p0)
+        return Problem(self.compiled.func, t_span, y0, p0)
 
     def solve(
         self,
-        values: dict[Constant | Parameter | Variable | Derivative, Initial] = {},
+        values: dict[
+            Constant | Parameter | Variable | Derivative, Initial | Symbol
+        ] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
         times: Array,
@@ -116,6 +107,6 @@ class Simulator:
         )
         return pd.DataFrame(
             result,
-            columns=self.variable_names,
+            columns=self.compiled.output_names,
             index=pd.Series(times, name="time"),
         )
