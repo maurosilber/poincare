@@ -2,6 +2,7 @@ from pint import DimensionalityError, UnitRegistry
 from poincare import Constant, Derivative, Parameter, System, Variable, assign, initial
 from poincare.types import Time
 from pytest import mark, raises
+from symbolite import scalar
 
 u = UnitRegistry()
 
@@ -110,3 +111,36 @@ def test_time():
         time = Time(default=0 * u.s)
         x: Variable = initial(default=1 * u.m)
         eq = x.derive() << x / (time + 1 * u.s)
+
+
+@mark.parametrize(
+    "func",
+    [
+        lambda x: Time(default=x),
+        lambda x: Constant(default=x),
+        lambda x: Parameter(default=x),
+        lambda x: Variable(initial=x),
+    ],
+)
+def test_dependencies(func):
+    with raises(DimensionalityError):
+
+        class WrongUnits(System):
+            c0 = Constant(default=0 * u.s)
+            c1 = func(c0 + 1)
+
+    class Model(System):
+        c0 = Constant(default=0 * u.s)
+        c1 = func(c0 + 1 * u.s)
+
+
+def test_function():
+    with raises(DimensionalityError):
+
+        class WrongUnits(System):
+            time = Time(default=0 * u.s)
+            p: Parameter = assign(default=scalar.cos(time))
+
+    class Model(System):
+        time = Time(default=0 * u.s)
+        p: Parameter = assign(default=scalar.cos(time * u.Hz))

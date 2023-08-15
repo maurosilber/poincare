@@ -64,6 +64,7 @@ def check_derivative_units(derivative: Derivative, value):
 class Constant(Node, Scalar):
     def __init__(self, *, default: Initial | None):
         self.default = default
+        check_units(self, default)
 
     def eval(self, libsl=libstd):
         return evaluate(self.default, libsl)
@@ -121,6 +122,7 @@ class Parameter(Node, Scalar):
 
     def __init__(self, *, default: Initial | Symbol | None):
         self.default = default
+        check_units(self, default)
 
     def eval(self, libsl=libstd):
         return evaluate(self.default, libsl)
