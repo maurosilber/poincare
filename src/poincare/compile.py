@@ -376,3 +376,60 @@ def compile_diffeq(
 
 def assert_never(arg: Never, *, message: str) -> Never:
     raise ValueError(message.format(arg))
+
+
+def identity_transform(t: float, y: Array, p: Array, out: MutableArray) -> Array:
+    out[:] = y
+    return out
+
+
+def compile_transform(
+    compiled: Compiled,
+    expresions: dict[str, Symbol] | None = None,
+) -> Compiled[Variable | Derivative, Transform]:
+    if expresions is None:
+        return Compiled(
+            func=identity_transform,
+            output_names=compiled.output_names,
+            variables=compiled.variables,
+            parameters=compiled.parameters,
+            mapper=compiled.mapper,
+            libsl=compiled.libsl,
+        )
+
+    mapping: Mapping = vector_mapping(
+        System.simulation_time,
+        compiled.variables,
+        compiled.parameters,
+    )
+
+    def to_index(k: str) -> str:
+        try:
+            return str(compiled.variables.index(k))
+        except ValueError:
+            pass
+
+        try:
+            return str(compiled.parameters.index(k))
+        except ValueError:
+            pass
+
+        raise ValueError(k)
+
+    deqs = {k: substitute(v, mapping) for k, v in expresions.items()}
+    ode_step_def = "\n    ".join(
+        [
+            "def transform(t, y, p, out):",
+            *(assignment("out", str(i), str(eq)) for i, eq in enumerate(deqs.values())),
+            "return out",
+        ]
+    )
+    lm = symbolite_compile(ode_step_def, compiled.libsl)
+    return Compiled(
+        func=lm["transform"],
+        output_names=tuple(map(str, deqs.keys())),
+        variables=compiled.variables,
+        parameters=compiled.parameters,
+        mapper=compiled.mapper,
+        libsl=compiled.libsl,
+    )

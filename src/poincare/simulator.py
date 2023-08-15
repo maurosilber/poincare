@@ -17,6 +17,7 @@ from .compile import (
     Compiled,
     Transform,
     compile_diffeq,
+    compile_transform,
     depends_on_at_least_one_variable_or_time,
 )
 from .types import Initial
@@ -48,9 +49,11 @@ class Simulator:
         /,
         *,
         backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY,
+        transform: dict[str, Symbol] | None = None,
     ):
         self.model = system
         self.compiled = compile_diffeq(system, backend)
+        self.transform = compile_transform(self.compiled, transform)
 
     def create_problem(
         self,
@@ -59,7 +62,13 @@ class Simulator:
         ] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
+        transform=None,
     ):
+        if transform is None:
+            transform = self.transform
+        elif transform is not self.transform:
+            raise NotImplementedError("must recompile transform function")
+
         if len(values.keys() - self.compiled.mapper) > 0 or any(
             map(depends_on_at_least_one_variable_or_time, values.values())
         ):
@@ -78,7 +87,13 @@ class Simulator:
             dtype=float,
             count=len(self.compiled.parameters),
         )
-        return Problem(self.compiled.func, t_span, y0, p0)
+        return Problem(
+            self.compiled.func,
+            t_span,
+            y0,
+            p0,
+            transform=transform.func,
+        )
 
     def solve(
         self,
@@ -105,8 +120,17 @@ class Simulator:
             args=(problem.p, dy),
             tfirst=True,
         )
+        result = self.transform.func(
+            times,
+            result.T,
+            problem.p,
+            np.empty(
+                (times.size, len(self.transform.output_names)),
+                dtype=result.dtype,
+            ).T,
+        ).T
         return pd.DataFrame(
             result,
-            columns=self.compiled.output_names,
+            columns=self.transform.output_names,
             index=pd.Series(times, name="time"),
         )
