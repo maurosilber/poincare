@@ -2,13 +2,15 @@ import numpy as np
 
 from ... import Parameter, System, Variable
 from ...simulator import Simulator
+from ...types import Time
 
 
 class Model(System):
+    time = Time(default=0)
     x = Variable(initial=0)
     y = Variable(initial=0)
     k = Parameter(default=1)
-    F = Parameter(default=System.simulation_time)
+    F = Parameter(default=time)
 
     eq_x = x.derive() << k * x
     eq_y = y.derive() << F

@@ -48,7 +48,7 @@ class Simulator:
     ):
         self.model = system
         self.compiled = compile_diffeq(system, backend)
-        self.transform = compile_transform(self.compiled, transform)
+        self.transform = compile_transform(system, self.compiled, transform)
 
     def create_problem(
         self,
@@ -64,8 +64,10 @@ class Simulator:
         elif transform is not self.transform:
             raise NotImplementedError("must recompile transform function")
 
+        time = self.model.time
         if len(values.keys() - self.compiled.mapper) > 0 or any(
-            map(depends_on_at_least_one_variable_or_time, values.values())
+            depends_on_at_least_one_variable_or_time(v, time=time)
+            for v in values.values()
         ):
             raise ValueError("must recompile to change assignments")
 
