@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import ChainMap
 from dataclasses import dataclass
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -131,3 +132,40 @@ class Simulator:
             columns=self.transform.output_names,
             index=pd.Series(times, name="time"),
         )
+
+    def interact(
+        self,
+        values: dict[Constant | Parameter | Variable | Derivative, Initial] = {},
+        *,
+        t_span: tuple[float, float] = (0, np.inf),
+        times: Array,
+        func: Callable[[pd.DataFrame], Any] | None = None,
+    ):
+        import ipywidgets
+
+        if len(values) == 0:
+            values = {
+                k: (0, 10, 0.1)
+                for k, v in self.compiled.mapper.items()
+                if isinstance(v, Initial)
+            }
+
+        name_map = {}
+        value_map = {}
+        for k, v in values.items():
+            name = str(k)
+            name_map[name] = k
+            value_map[name] = v
+
+        def solve_and_plot(**kwargs):
+            result = self.solve(
+                {name_map[k]: v for k, v in kwargs.items()},
+                t_span=t_span,
+                times=times,
+            )
+            if func is None:
+                result.plot()
+            else:
+                func(result)
+
+        ipywidgets.interact(solve_and_plot, **value_map)
