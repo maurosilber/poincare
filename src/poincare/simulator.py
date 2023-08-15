@@ -14,7 +14,6 @@ from .compile import (
     RHS,
     Array,
     Backend,
-    Compiled,
     Transform,
     compile_diffeq,
     compile_transform,
@@ -39,10 +38,6 @@ class Solution:
 
 
 class Simulator:
-    model = System | type[System]
-    compiled: Compiled[Variable | Derivative, Parameter, RHS]
-    transform: Compiled[Variable | Derivative, Parameter, Transform]
-
     def __init__(
         self,
         system: System | type[System],
