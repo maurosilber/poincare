@@ -402,8 +402,11 @@ class Time(Parameter):
     def _copy_from(self, parent: System):
         raise NotImplementedError
 
-    def __get__(self, obj, cls):
-        return self
+    def __get__(self, obj: System | None, cls):
+        if obj is None or obj.parent is None:
+            return self
+        else:
+            return obj.parent.time
 
     def __set__(self, obj, value: Initial | Symbol):
         raise TypeError("cannot modify time")
