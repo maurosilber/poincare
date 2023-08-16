@@ -20,7 +20,7 @@ from .compile import (
     compile_transform,
     depends_on_at_least_one_variable_or_time,
 )
-from .types import Initial
+from .types import Initial, Number
 
 
 @dataclass
@@ -74,7 +74,12 @@ class Simulator:
 
         content = ChainMap(values, self.compiled.mapper)
         assert self.compiled.libsl is not None
-        result = eval_content(content, self.compiled.libsl, Node)
+        result = eval_content(
+            content,
+            self.compiled.libsl,
+            is_root=lambda x: isinstance(x, Number),
+            is_dependency=lambda x: isinstance(x, Node),
+        )
         y0 = np.fromiter(
             (result[k] for k in self.compiled.variables),
             dtype=float,

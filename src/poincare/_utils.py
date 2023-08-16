@@ -83,21 +83,17 @@ def solve_dependencies(dependencies: Mapping[TH, set[TH]]) -> Iterator[set[TH]]:
 def eval_content(
     content: Mapping[TH, Any],
     libsl: ModuleType,
-    used_types: tuple[type, ...],
+    is_root: Callable[[Any], bool],
+    is_dependency: Callable[[Any], bool],
 ) -> dict[TH, scalar.NumberT]:
-    def f(val):
-        return isinstance(val, used_types)
-
     out: dict[TH, scalar.NumberT] = {}
 
     dependencies = defaultdict(set)
     for k, v in content.items():
-        if k is v:
-            out[k] = v
-        elif isinstance(v, scalar.NumberT):
+        if is_root(v):
             out[k] = v
         else:
-            for el in filter(f, inspect(v).keys()):
+            for el in filter(is_dependency, inspect(v).keys()):
                 dependencies[k].add(el)
 
     layers = solve_dependencies(dependencies)

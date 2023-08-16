@@ -30,6 +30,7 @@ from .types import (
     Equation,
     EquationGroup,
     Initial,
+    Number,
     Parameter,
     System,
     Variable,
@@ -231,6 +232,16 @@ def build_equation_maps(
         process_symbol(derivative.variable, time=time)
         process_symbol(eq, time=time)
 
+    def is_root(x):
+        if x is system.time:
+            return True
+        elif isinstance(x, Number):
+            return True
+        elif x in parameters or x in variables:
+            return True
+        else:
+            return False
+
     content = {
         **equations,
         **algebraic,
@@ -241,7 +252,8 @@ def build_equation_maps(
     content = eval_content(
         content,
         libabstract,
-        Node,
+        is_root=is_root,
+        is_dependency=lambda x: isinstance(x, Node),
     )
 
     equations = {k: content[k] for k in equations.keys()}

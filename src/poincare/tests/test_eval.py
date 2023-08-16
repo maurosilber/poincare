@@ -25,16 +25,22 @@ class SimpleParameter(scalar.Scalar):
         return self
 
 
+def is_root(x):
+    return isinstance(x, scalar.NumberT)
+
+
+def is_dependency(x):
+    return isinstance(x, (SimpleParameter, SimpleVariable))
+
+
 def test_eval_content():
     d = {SimpleParameter("x"): 1}
 
-    assert eval_content(d, libstd, (SimpleParameter, SimpleVariable)) == {
-        SimpleParameter("x"): 1
-    }
+    assert eval_content(d, libstd, is_root, is_dependency) == {SimpleParameter("x"): 1}
 
     d = {SimpleParameter("x"): 1, SimpleParameter("y"): 2 * SimpleParameter("x")}
 
-    assert eval_content(d, libstd, (SimpleParameter, SimpleVariable)) == {
+    assert eval_content(d, libstd, is_root, is_dependency) == {
         SimpleParameter("x"): 1,
         SimpleParameter("y"): 2,
     }
@@ -46,7 +52,7 @@ def test_cyclic():
     }
 
     with pytest.raises(ValueError):
-        assert eval_content(d, libstd, (SimpleParameter, SimpleVariable))
+        assert eval_content(d, libstd, is_root, is_dependency)
 
     d = {
         SimpleParameter("x"): 2 * SimpleParameter("y"),
@@ -54,4 +60,4 @@ def test_cyclic():
     }
 
     with pytest.raises(ValueError):
-        assert eval_content(d, libstd, (SimpleParameter, SimpleVariable))
+        assert eval_content(d, libstd, is_root, is_dependency)
