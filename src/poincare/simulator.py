@@ -110,13 +110,15 @@ class Simulator:
 
         def from_magnitude(x, x0):
             if isinstance(x0, pint.Quantity):
+                unit = x0.units
+                scale = (1 * x0.to_base_units().units).m_as(unit)
                 if isinstance(x, np.ndarray):
                     return pint_pandas.PintArray(
-                        x * (x0.magnitude / x0.to_base_units().magnitude),
-                        pint_pandas.PintType(x0.units),
+                        x * scale,
+                        pint_pandas.PintType(unit),
                     )
                 else:
-                    return (x * x0.to_base_units().units).to(x0.units)
+                    return (x * scale).to(unit)
             else:
                 return x
 

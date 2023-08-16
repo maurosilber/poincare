@@ -173,3 +173,14 @@ def test_unit_in_equation():
 
     sim = Simulator(Model)
     sim.solve(times=np.linspace(0, 1, 10))
+
+
+def test_zero_initial_with_unit():
+    class Model(System):
+        x: Variable = initial(default=0 * u.m)
+        T: Parameter = assign(default=1 * u.s)
+        eq = x.derive() << x / T
+
+    times = np.linspace(0, 1, 10)
+    sim = Simulator(Model)
+    sim.solve(times=times)
