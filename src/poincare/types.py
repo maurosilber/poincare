@@ -340,6 +340,13 @@ class Derivative(Node, Symbol):
     def __repr__(self):
         return f"D({self.variable.name}, {self.order})"
 
+    def __str__(self):
+        s = super().__str__()
+        if s == "":
+            return repr(self)
+        else:
+            return s
+
 
 @dataclass
 class Equation(Node):
