@@ -42,7 +42,7 @@ def check_equations_units(lhs: Derivative, rhs):
     else:
         return
 
-    value / time ** (order + 1) - rhs  # check units
+    value / time ** (lhs.order - order) - rhs  # check units
     return
 
 
