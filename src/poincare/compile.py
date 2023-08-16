@@ -16,6 +16,7 @@ from typing import (
     TypeVar,
 )
 
+import pint
 import symbolite.abstract as libabstract
 from symbolite import Symbol, scalar, vector
 from symbolite.core import compile as symbolite_compile
@@ -59,7 +60,7 @@ class Compiled(Generic[V, F]):
     parameters: Sequence[Symbol]
     mapper: dict[Symbol, Any]
     func: F
-    output_names: Sequence[str]
+    output: dict[str, ExprRHS]
     libsl: ModuleType | None = None
 
 
@@ -235,7 +236,7 @@ def build_equation_maps(
     def is_root(x):
         if x is system.time:
             return True
-        elif isinstance(x, Number):
+        elif isinstance(x, Number | pint.Quantity):
             return True
         elif x in parameters or x in variables:
             return True
@@ -245,9 +246,7 @@ def build_equation_maps(
     content = {
         **equations,
         **algebraic,
-        **{system.time: system.time},
-        **{p: p for p in parameters},
-        **{v: v for v in variables},
+        **{x: x for x in (system.time, *variables, *parameters)},
     }
     content = eval_content(
         content,
@@ -263,7 +262,7 @@ def build_equation_maps(
         parameters=sorted(parameters, key=str),
         mapper=initials,
         func=equations,
-        output_names=tuple(map(str, sorted_variables)),
+        output=sorted_variables,
     )
 
 
@@ -299,7 +298,7 @@ def build_first_order_symbolic_ode(
 
     return Compiled(
         variables=variables,
-        output_names=tuple(map(str, variables)),
+        output={str(v): v for v in variables},
         func=diff_eqs,
         parameters=maps.parameters,
         mapper=maps.mapper,
@@ -357,7 +356,7 @@ def build_first_order_vectorized_body(
         parameters=symbolic.parameters,
         mapper=symbolic.mapper,
         func=ode_step_def,
-        output_names=symbolic.output_names,
+        output=symbolic.output,
     )
 
 
@@ -376,7 +375,7 @@ def build_first_order_functions(
         parameters=vectorized.parameters,
         mapper=vectorized.mapper,
         func=optimizer(lm["ode_step"]),
-        output_names=vectorized.output_names,
+        output=vectorized.output,
         libsl=libsl,
     )
 
@@ -420,7 +419,7 @@ def compile_transform(
     if expresions is None:
         return Compiled(
             func=identity_transform,
-            output_names=compiled.output_names,
+            output=compiled.output,
             variables=compiled.variables,
             parameters=compiled.parameters,
             mapper=compiled.mapper,
@@ -430,7 +429,7 @@ def compile_transform(
     def is_root(x):
         if x is system.time:
             return True
-        elif isinstance(x, Number):
+        elif isinstance(x, Number | pint.Quantity):
             return True
         elif x in compiled.parameters or x in compiled.variables:
             return True
@@ -480,7 +479,7 @@ def compile_transform(
     lm = symbolite_compile(ode_step_def, compiled.libsl)
     return Compiled(
         func=lm["transform"],
-        output_names=tuple(map(str, deqs.keys())),
+        output=expresions,
         variables=compiled.variables,
         parameters=compiled.parameters,
         mapper=compiled.mapper,

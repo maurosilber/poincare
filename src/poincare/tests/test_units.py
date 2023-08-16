@@ -1,5 +1,7 @@
+import numpy as np
 from pint import DimensionalityError, get_application_registry
 from poincare import Constant, Derivative, Parameter, System, Variable, assign, initial
+from poincare.simulator import Simulator
 from poincare.types import Time
 from pytest import mark, raises
 from symbolite import scalar
@@ -144,3 +146,20 @@ def test_function():
     class Model(System):
         time = Time(default=0 * u.s)
         p: Parameter = assign(default=scalar.cos(time * u.Hz))
+
+
+def test_normalization():
+    class Model(System):
+        T: Parameter = assign(default=1 * u.s)
+        x: Variable = initial(default=1 * u.m)
+        y: Variable = initial(default=1 * u.m)
+        eq_x = x.derive() << (x - y) / T
+        eq_y = y.derive() << (x + y) / T
+
+    t = np.linspace(0, 1, 10)
+    sim = Simulator(Model)
+    df = sim.solve(times=t)
+    df_cm = sim.solve(values={Model.y: 100 * u.cm}, times=t)
+    assert np.allclose((df - df_cm).pint.dequantify().values, 0)
+    assert df["y"].pint.units == u.m
+    assert df_cm["y"].pint.units == u.cm

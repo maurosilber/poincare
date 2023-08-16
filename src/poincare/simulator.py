@@ -6,6 +6,8 @@ from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
+import pint
+import pint_pandas
 from symbolite import Symbol
 
 from . import Constant, Derivative, Parameter, System, Variable
@@ -27,8 +29,8 @@ from .types import Initial, Number
 class Problem:
     rhs: RHS
     t: tuple[float, float]
-    y: Array
-    p: Array
+    y: dict[Symbol, Number | pint.Quantity]
+    p: dict[Symbol, Number | pint.Quantity]
     transform: Transform
 
 
@@ -77,26 +79,12 @@ class Simulator:
         result = eval_content(
             content,
             self.compiled.libsl,
-            is_root=lambda x: isinstance(x, Number),
+            is_root=lambda x: isinstance(x, Number | pint.Quantity),
             is_dependency=lambda x: isinstance(x, Node),
         )
-        y0 = np.fromiter(
-            (result[k] for k in self.compiled.variables),
-            dtype=float,
-            count=len(self.compiled.variables),
-        )
-        p0 = np.fromiter(
-            (result[k] for k in self.compiled.parameters),
-            dtype=float,
-            count=len(self.compiled.parameters),
-        )
-        return Problem(
-            self.compiled.func,
-            t_span,
-            y0,
-            p0,
-            transform=transform.func,
-        )
+        y0 = {k: result[k] for k in self.compiled.variables}
+        p0 = {k: result[k] for k in self.compiled.parameters}
+        return Problem(self.compiled.func, t_span, y0, p0, transform=transform.func)
 
     def solve(
         self,
@@ -114,27 +102,66 @@ class Simulator:
 
         times = np.asarray(times)
 
+        def to_magnitude(x):
+            if isinstance(x, pint.Quantity):
+                return x.to_base_units().magnitude
+            else:
+                return x
+
+        def from_magnitude(x, x0):
+            if isinstance(x0, pint.Quantity):
+                if isinstance(x, np.ndarray):
+                    return pint_pandas.PintArray(
+                        x * (x0.magnitude / x0.to_base_units().magnitude),
+                        pint_pandas.PintType(x0.units),
+                    )
+                else:
+                    return (x * x0.to_base_units().units).to(x0.units)
+            else:
+                return x
+
         problem = self.create_problem(values, t_span=t_span)
-        dy = np.empty_like(problem.y)
+        y = np.fromiter(
+            map(to_magnitude, problem.y.values()),
+            dtype=float,
+            count=len(problem.y),
+        )
+        p = np.fromiter(
+            map(to_magnitude, problem.p.values()),
+            dtype=float,
+            count=len(problem.p),
+        )
+        dy = np.empty_like(y)
         result = odeint(
             problem.rhs,
-            problem.y,
+            y,
             times,
-            args=(problem.p, dy),
+            args=(p, dy),
             tfirst=True,
         )
         result = self.transform.func(
             times,
             result.T,
-            problem.p,
+            p,
             np.empty(
-                (times.size, len(self.transform.output_names)),
+                (times.size, len(self.transform.output)),
                 dtype=result.dtype,
             ).T,
         ).T
+
+        output_units = eval_content(
+            ChainMap(self.transform.output, problem.p, problem.y),
+            self.transform.libsl,
+            is_root=lambda x: isinstance(x, Number | pint.Quantity),
+            is_dependency=lambda x: isinstance(x, Node),
+        )
+        output_units = {k: output_units[k] for k in self.transform.output.keys()}
+
         return pd.DataFrame(
-            result,
-            columns=self.transform.output_names,
+            {
+                k: from_magnitude(v, v0)
+                for (k, v0), v in zip(output_units.items(), result.T)
+            },
             index=pd.Series(times, name="time"),
         )
 

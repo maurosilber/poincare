@@ -11,6 +11,7 @@ dependencies:
   - scipy
   - matplotlib
   - pint
+  - pint-pandas
   - pip
   - pip:
     - symbolite
