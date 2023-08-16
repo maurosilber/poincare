@@ -163,3 +163,13 @@ def test_normalization():
     assert np.allclose((df - df_cm).pint.dequantify().values, 0)
     assert df["y"].pint.units == u.m
     assert df_cm["y"].pint.units == u.cm
+
+
+@mark.xfail(reason="Not yet implemented")
+def test_unit_in_equation():
+    class Model(System):
+        x: Variable = initial(default=0 * u.m)
+        eq = x.derive() << x / (1 * u.s)
+
+    sim = Simulator(Model)
+    sim.solve(times=np.linspace(0, 1, 10))
