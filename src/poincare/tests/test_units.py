@@ -1,10 +1,10 @@
-from pint import DimensionalityError, UnitRegistry
+from pint import DimensionalityError, get_application_registry
 from poincare import Constant, Derivative, Parameter, System, Variable, assign, initial
 from poincare.types import Time
 from pytest import mark, raises
 from symbolite import scalar
 
-u = UnitRegistry()
+u = get_application_registry()
 
 
 @mark.parametrize(
