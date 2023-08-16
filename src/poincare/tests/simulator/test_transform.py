@@ -1,13 +1,16 @@
 import numpy as np
+from pytest import mark
 
-from ... import Parameter, System, Variable
+from ... import Constant, Parameter, System, Variable
 from ...simulator import Simulator
 from ...types import Time
 
 
 class Model(System):
     time = Time(default=0)
-    x = Variable(initial=0)
+    c = Constant(default=0)
+    unused = Constant(default=0)
+    x = Variable(initial=c)
     y = Variable(initial=0)
     k = Parameter(default=1)
     F = Parameter(default=time)
@@ -35,3 +38,15 @@ def test_sum_variable():
     assert len(df) == len(df_all)
     assert (df["sum"] == df_all["x"] + df_all["y"]).all()
     assert set(df.columns) == {"sum"}
+
+
+def test_non_variable():
+    # Should it shortcut and skip the solver?
+    df = Simulator(Model, transform={"c": Model.c}).solve(times=times)
+    assert np.all(df["c"] == Model.c.default)
+
+
+@mark.xfail(reason="Not yet implemented")
+def test_unused_variable():
+    df = Simulator(Model, transform={"unused": Model.unused}).solve(times=times)
+    assert np.all(df["unused"] == Model.unused.default)

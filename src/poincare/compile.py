@@ -427,6 +427,29 @@ def compile_transform(
             libsl=compiled.libsl,
         )
 
+    def is_root(x):
+        if x is system.time:
+            return True
+        elif isinstance(x, Number):
+            return True
+        elif x in compiled.parameters or x in compiled.variables:
+            return True
+        else:
+            return False
+
+    content = {
+        **expresions,
+        **compiled.mapper,
+        **{x: x for x in (system.time, *compiled.variables, *compiled.parameters)},
+    }
+    content = eval_content(
+        content,
+        libabstract,
+        is_root=is_root,
+        is_dependency=lambda x: isinstance(x, Node),
+    )
+    expresions = {k: content[k] for k in expresions}
+
     mapping: Mapping = vector_mapping(
         system.time,
         compiled.variables,
