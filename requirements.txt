@@ -3,3 +3,4 @@ typing_extensions
 numpy
 scipy
 pandas
+pint

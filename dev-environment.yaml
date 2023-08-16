@@ -10,6 +10,7 @@ dependencies:
   - pandas
   - scipy
   - matplotlib
+  - pint
   - pip
   - pip:
     - symbolite
