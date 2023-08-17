@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from poincare import Parameter, System, Variable, assign, initial
-from poincare.simulator import Simulator
+from poincare import Parameter, Simulator, System, Variable, assign, initial
 
 
 class LotkaVolterra(System):

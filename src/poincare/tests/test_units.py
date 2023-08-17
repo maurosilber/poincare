@@ -1,8 +1,16 @@
 import numpy as np
 from pint import DimensionalityError, get_application_registry
-from poincare import Constant, Derivative, Parameter, System, Variable, assign, initial
-from poincare.simulator import Simulator
-from poincare.types import Time
+from poincare import (
+    Constant,
+    Derivative,
+    Parameter,
+    Simulator,
+    System,
+    Time,
+    Variable,
+    assign,
+    initial,
+)
 from pytest import mark, raises
 from symbolite import scalar
 from symbolite.impl import libstd

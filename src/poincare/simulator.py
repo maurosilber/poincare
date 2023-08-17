@@ -10,7 +10,6 @@ import pint
 import pint_pandas
 from symbolite import Symbol
 
-from . import Constant, Derivative, Parameter, System, Variable
 from ._node import Node
 from ._utils import eval_content
 from .compile import (
@@ -22,7 +21,7 @@ from .compile import (
     compile_transform,
     depends_on_at_least_one_variable_or_time,
 )
-from .types import Initial, Number
+from .types import Constant, Derivative, Initial, Number, Parameter, System, Variable
 
 
 @dataclass

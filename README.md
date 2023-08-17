@@ -34,7 +34,7 @@ To simulate that system,
 we do:
 
 ```python
->>> from poincare.simulator import Simulator
+>>> from poincare import Simulator
 >>> sim = Simulator(Model)
 >>> sim.solve(times=range(3))
              x
