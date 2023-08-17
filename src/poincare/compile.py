@@ -233,12 +233,14 @@ def build_equation_maps(
         process_symbol(derivative.variable, time=time)
         process_symbol(eq, time=time)
 
+    root = {system.time, *variables, *parameters}
+    for v in variables:
+        root.update(v.derivatives[order] for order in range(1, v.equation_order))
+
     def is_root(x):
-        if x is system.time:
+        if isinstance(x, Number | pint.Quantity):
             return True
-        elif isinstance(x, Number | pint.Quantity):
-            return True
-        elif x in parameters or x in variables:
+        elif x in root:
             return True
         else:
             return False
@@ -246,8 +248,9 @@ def build_equation_maps(
     content = {
         **equations,
         **algebraic,
-        **{x: x for x in (system.time, *variables, *parameters)},
+        **{x: x for x in root},
     }
+
     content = eval_content(
         content,
         libabstract,
