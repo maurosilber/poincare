@@ -20,6 +20,17 @@ T = TypeVar("T")
 register_with_pint(Symbol)
 
 
+class EvalUnitError(Exception):
+    pass
+
+
+def try_eval_units(value):
+    try:
+        return evaluate(value, libsl=libstd)
+    except EvalUnitError:
+        return None
+
+
 def check_equations_units(lhs: Derivative, rhs):
     order = 0
     if (value := lhs.variable.initial) is None:
@@ -29,11 +40,11 @@ def check_equations_units(lhs: Derivative, rhs):
                 break
         else:
             # No unit assigned. Only check that rhs is consistent.
-            evaluate(rhs, libsl=libstd)
+            try_eval_units(rhs)
             return
 
-    value = evaluate(value, libsl=libstd)
-    rhs = evaluate(rhs, libsl=libstd)
+    value = try_eval_units(value)
+    rhs = try_eval_units(rhs)
     if rhs is None:
         return
     if isinstance(value, pint.Quantity):
@@ -48,8 +59,8 @@ def check_equations_units(lhs: Derivative, rhs):
 
 
 def check_units(var, value):
-    lhs = evaluate(var, libsl=libstd)
-    rhs = evaluate(value, libsl=libstd)
+    lhs = try_eval_units(var)
+    rhs = try_eval_units(value)
 
     if lhs is not None and rhs is not None:
         lhs - rhs  # must have same units
@@ -70,6 +81,8 @@ class Constant(Node, Scalar):
     def eval(self, libsl=None):
         if libsl is libabstract:
             return self
+        elif self.default is None:
+            raise EvalUnitError
         else:
             return evaluate(self.default, libsl)
 
@@ -131,6 +144,8 @@ class Parameter(Node, Scalar):
     def eval(self, libsl=None):
         if libsl is libabstract:
             return self
+        elif self.default is None:
+            raise EvalUnitError
         else:
             return evaluate(self.default, libsl)
 
@@ -173,6 +188,8 @@ class Variable(Node, Scalar):
     def eval(self, libsl=None):
         if libsl is libabstract:
             return self
+        elif self.initial is None:
+            raise EvalUnitError
         else:
             return evaluate(self.initial, libsl)
 
@@ -276,6 +293,8 @@ class Derivative(Node, Symbol):
     def eval(self, libsl=None):
         if libsl is libabstract:
             return self
+        elif self.initial is None:
+            raise EvalUnitError
         else:
             return evaluate(self.initial, libsl)
 

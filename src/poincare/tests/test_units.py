@@ -137,6 +137,25 @@ def test_dependencies(func):
         c1 = func(c0 + 1 * u.s)
 
 
+@mark.parametrize(
+    "func",
+    [
+        lambda x: Time(default=x),
+        lambda x: Constant(default=x),
+        lambda x: Parameter(default=x),
+        lambda x: Variable(initial=x),
+    ],
+)
+def test_eval_required(func):
+    class Model(System):
+        x: Variable = initial(default=1 * u.m)
+        y = func(None)
+        eq = x.derive() << x * y
+        # TODO: we don't know `y` units,
+        # but we could infer what they must be,
+        # and if they conflict somewhere else.
+
+
 def test_function():
     with raises(DimensionalityError):
 
