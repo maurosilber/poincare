@@ -2,7 +2,7 @@
 ![CodeStyle](https://img.shields.io/badge/code%20style-black-000000.svg)
 ![License](https://img.shields.io/pypi/l/poincare?label=license)
 ![PyVersion](https://img.shields.io/pypi/pyversions/poincare?label=python)
-[![CI](https://github.com/maurosilber/poincare/actions/workflows/test.yml/badge.svg)](https://github.com/maurosilber/poincare/actions/workflows/test.yml)
+[![CI](https://github.com/maurosilber/poincare/actions/workflows/ci.yml/badge.svg)](https://github.com/maurosilber/poincare/actions/workflows/ci.yml)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/maurosilber/poincare/main.svg)](https://results.pre-commit.ci/latest/github/maurosilber/poincare/main)
 
 # Poincaré: simulation of dynamical systems

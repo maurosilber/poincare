@@ -1,0 +1,56 @@
+name: CI
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+        pip-pre: ["", "--pre"]
+    continue-on-error: ${{ matrix.pip-pre == '--pre' }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install package
+        run: python -m pip install ${{ matrix.pip-pre }} .[test]
+
+      - name: Test with pytest
+        run: pytest
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: test
+    runs-on: linux
+    environment:
+      name: pypi
+      url: https://pypi.org/p/poincare
+    permissions:
+      id-token: write
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: python -m pip install build
+
+    - name: Build package
+      run: python -m build
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
