@@ -78,11 +78,13 @@ class Simulator:
             match [v, default]:
                 case [pint.Quantity() as q1, pint.Quantity() as q2]:
                     if not q1.is_compatible_with(q2):
-                        raise pint.DimensionalityError(q1.units, q2.units)
+                        raise pint.DimensionalityError(
+                            q1.units, q2.units, extra_msg=f" for {k}"
+                        )
                 case [pint.Quantity() as q, _] | [_, pint.Quantity() as q]:
                     if not q.dimensionless:
                         raise pint.DimensionalityError(
-                            q.units, pint.Unit("dimensionless")
+                            q.units, pint.Unit("dimensionless"), extra_msg=f" for {k}"
                         )
 
         content = ChainMap(values, self.compiled.mapper)
