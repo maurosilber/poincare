@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import ChainMap
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Hashable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -46,10 +46,12 @@ class Simulator:
         /,
         *,
         backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY,
-        transform: dict[str, Symbol] | None = None,
+        transform: Sequence[Symbol] | Mapping[Hashable, Symbol] | None = None,
     ):
         self.model = system
         self.compiled = compile_diffeq(system, backend)
+        if isinstance(transform, Sequence):
+            transform = {str(x): x for x in transform}
         self.transform = compile_transform(system, self.compiled, transform)
 
     def create_problem(
