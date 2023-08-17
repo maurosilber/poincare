@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pint
 import pint_pandas
+from numpy.typing import ArrayLike
 from symbolite import Symbol
 
 from ._node import Node
@@ -108,7 +109,7 @@ class Simulator:
         ] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
-        times: Array,
+        times: ArrayLike,
     ):
         from scipy.integrate import odeint
 
@@ -184,10 +185,12 @@ class Simulator:
 
     def interact(
         self,
-        values: dict[Constant | Parameter | Variable | Derivative, Initial] = {},
+        values: dict[
+            Constant | Parameter | Variable | Derivative, tuple[float, ...]
+        ] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
-        times: Array,
+        times: ArrayLike,
         func: Callable[[pd.DataFrame], Any] | None = None,
     ):
         import ipywidgets
