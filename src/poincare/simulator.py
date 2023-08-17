@@ -73,6 +73,18 @@ class Simulator:
         ):
             raise ValueError("must recompile to change assignments")
 
+        for k, v in values.items():
+            default = self.compiled.mapper[k]
+            match [v, default]:
+                case [pint.Quantity() as q1, pint.Quantity() as q2]:
+                    if not q1.is_compatible_with(q2):
+                        raise pint.DimensionalityError(q1.units, q2.units)
+                case [pint.Quantity() as q, _] | [_, pint.Quantity() as q]:
+                    if not q.dimensionless:
+                        raise pint.DimensionalityError(
+                            q.units, pint.Unit("dimensionless")
+                        )
+
         content = ChainMap(values, self.compiled.mapper)
         assert self.compiled.libsl is not None
         result = eval_content(

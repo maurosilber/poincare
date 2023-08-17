@@ -176,6 +176,23 @@ def test_function():
         p: Parameter = assign(default=scalar.cos(time * u.Hz))
 
 
+def test_simulator_values():
+    class Model(System):
+        x: Variable = initial(default=1)
+        T: Parameter = assign(default=1 * u.s)
+        eq = x.derive() << -x / T
+
+    sim = Simulator(Model)
+
+    with raises(DimensionalityError):
+        sim.solve(times=range(3), values={Model.x: 1 * u.m})
+
+    with raises(DimensionalityError):
+        sim.solve(times=range(3), values={Model.T: 1})
+
+    sim.solve(times=range(3), values={Model.T: 1 * u.ms})
+
+
 def test_normalization():
     class Model(System):
         T: Parameter = assign(default=1 * u.s)
