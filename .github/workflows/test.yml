@@ -10,6 +10,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
         pip-pre: ["", "--pre"]
+    continue-on-error: ${{ matrix.pip-pre == '--pre' }}
 
     steps:
       - uses: actions/checkout@v3
