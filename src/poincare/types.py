@@ -8,6 +8,7 @@ import pint
 from symbolite import Scalar, Symbol
 from symbolite import abstract as libabstract
 from symbolite.core import evaluate, substitute
+from symbolite.impl import libstd
 from typing_extensions import Self, dataclass_transform
 
 from ._node import Node, NodeMapper
@@ -28,11 +29,11 @@ def check_equations_units(lhs: Derivative, rhs):
                 break
         else:
             # No unit assigned. Only check that rhs is consistent.
-            evaluate(rhs)
+            evaluate(rhs, libsl=libstd)
             return
 
-    value = evaluate(value)
-    rhs = evaluate(rhs)
+    value = evaluate(value, libsl=libstd)
+    rhs = evaluate(rhs, libsl=libstd)
     if rhs is None:
         return
     if isinstance(value, pint.Quantity):
@@ -47,8 +48,8 @@ def check_equations_units(lhs: Derivative, rhs):
 
 
 def check_units(var, value):
-    lhs = evaluate(var)
-    rhs = evaluate(value)
+    lhs = evaluate(var, libsl=libstd)
+    rhs = evaluate(value, libsl=libstd)
 
     if lhs is not None and rhs is not None:
         lhs - rhs  # must have same units

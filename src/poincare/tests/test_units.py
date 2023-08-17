@@ -5,6 +5,7 @@ from poincare.simulator import Simulator
 from poincare.types import Time
 from pytest import mark, raises
 from symbolite import scalar
+from symbolite.impl import libstd
 
 u = get_application_registry()
 
@@ -23,11 +24,11 @@ def test_symbol_and_quantity(value):
 
     left = value + q
     right = q + value
-    assert left.eval() == right.eval()
+    assert left.eval(libstd) == right.eval(libstd)
 
     left = left + q
     right = q + right
-    assert left.eval() == right.eval()
+    assert left.eval(libstd) == right.eval(libstd)
 
 
 def test_single_constant():
