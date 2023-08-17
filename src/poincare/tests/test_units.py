@@ -164,6 +164,19 @@ def test_eval_required(func):
         # and if they conflict somewhere else.
 
 
+@mark.xfail(reason="Not yet implemented")
+def test_required():
+    class Model(System):
+        x: Variable = initial()
+        T: Parameter = assign(default=1 * u.s)
+        eq = x.derive() << -x / T
+
+    with raises(DimensionalityError):
+        Model(x=1 * u.m)
+
+    Model(x=1)
+
+
 def test_function():
     with raises(DimensionalityError):
 
