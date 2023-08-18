@@ -12,6 +12,7 @@ from typing_extensions import Self, dataclass_transform
 
 from . import units
 from ._node import Node, NodeMapper
+from ._utils import class_and_instance_method
 
 T = TypeVar("T")
 
@@ -499,3 +500,17 @@ class System(Node, metaclass=EagerNamer):
         name = self.__class__.__name__
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
+
+    @class_and_instance_method
+    def _repr_latex_(self):
+        from .printing.latex import ToLatex, as_aligned_lines
+
+        to_latex = ToLatex(self)
+        align_char = " &= "
+        return "\n\n".join(
+            [
+                as_aligned_lines(to_latex.yield_variables(), align_char=align_char),
+                as_aligned_lines(to_latex.yield_parameters(), align_char=align_char),
+                as_aligned_lines(to_latex.yield_equations(), align_char=align_char),
+            ]
+        )
