@@ -198,7 +198,8 @@ class Simulator:
 
     def interact(
         self,
-        values: Mapping[Components, tuple[float, ...] | ipywidgets.FloatSlider] = {},
+        values: Mapping[Components, tuple[float, ...] | ipywidgets.FloatSlider]
+        | Sequence[Components] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
         times: ArrayLike,
@@ -214,6 +215,8 @@ class Simulator:
 
         if len(values) == 0:
             values = self.compiled.mapper
+        elif isinstance(values, Sequence):
+            values = {k: self.compiled.mapper[k] for k in values}
 
         name_map = {}
         value_map = {}
