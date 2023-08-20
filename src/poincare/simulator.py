@@ -204,7 +204,13 @@ class Simulator:
         times: ArrayLike,
         func: Callable[[pd.DataFrame], Any] | None = None,
     ):
-        import ipywidgets
+        try:
+            import ipywidgets
+        except ImportError:
+            raise ImportError(
+                "must install ipywidgets to use interactuve."
+                " Run `pip install ipywidgets`."
+            )
 
         if len(values) == 0:
             values = {
