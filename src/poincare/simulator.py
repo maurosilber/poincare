@@ -213,18 +213,29 @@ class Simulator:
             )
 
         if len(values) == 0:
-            values = {
-                k: (0, 10, 0.1)
-                for k, v in self.compiled.mapper.items()
-                if isinstance(v, Initial)
-            }
+            values = self.compiled.mapper
 
         name_map = {}
         value_map = {}
         for k, v in values.items():
+            match v:
+                case float(v):
+                    widget = ipywidgets.FloatSlider(
+                        v, min=v / 10, max=v * 10, step=0.1 * v
+                    )
+                case (min, max, step):
+                    v = self.compiled.mapper[k]
+                    if not isinstance(v, Number):
+                        v = None
+                    widget = ipywidgets.FloatSlider(v, min=min, max=max, step=step)
+                case ipywidgets.Widget():
+                    widget = v
+                case _:
+                    continue
+
             name = str(k)
             name_map[name] = k
-            value_map[name] = v
+            value_map[name] = widget
 
         def solve_and_plot(**kwargs):
             result = self.solve(
