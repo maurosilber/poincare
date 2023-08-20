@@ -202,7 +202,7 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
         times: ArrayLike,
-        func: Callable[[pd.DataFrame], Any] | None = None,
+        func: Callable[[pd.DataFrame], Any] = lambda df: df.plot(),
     ):
         try:
             import ipywidgets
@@ -232,9 +232,6 @@ class Simulator:
                 t_span=t_span,
                 times=times,
             )
-            if func is None:
-                result.plot()
-            else:
-                func(result)
+            func(result)
 
         ipywidgets.interact(solve_and_plot, **value_map)
