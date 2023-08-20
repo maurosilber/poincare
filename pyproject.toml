@@ -37,6 +37,7 @@ where = ["src"]
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
 optional-dependencies.test = {file = "requirements.test.txt"}
+optional-dependencies.full = {file = "requirements.full.txt"}
 
 [project.urls]
 "Homepage" = "https://github.com/maurosilber/poincare"
