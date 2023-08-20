@@ -51,9 +51,15 @@ class Simulator:
     ):
         self.model = system
         self.compiled = compile_diffeq(system, backend)
+        self.transform = self._compile_transform(transform)
+
+    def _compile_transform(
+        self,
+        transform: Sequence[Symbol] | Mapping[Hashable, Symbol] | None,
+    ):
         if isinstance(transform, Sequence):
             transform = {str(x): x for x in transform}
-        self.transform = compile_transform(system, self.compiled, transform)
+        return compile_transform(self.model, self.compiled, transform)
 
     def create_problem(
         self,
@@ -62,12 +68,12 @@ class Simulator:
         ] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
-        transform=None,
+        transform: Sequence[Symbol] | Mapping[Hashable, Symbol] | None = None,
     ):
         if transform is None:
-            transform = self.transform
-        elif transform is not self.transform:
-            raise NotImplementedError("must recompile transform function")
+            compiled_transform = self.transform
+        else:
+            compiled_transform = self._compile_transform(transform)
 
         time = self.model.time
         if len(values.keys() - self.compiled.mapper) > 0 or any(
@@ -100,7 +106,13 @@ class Simulator:
         )
         y0 = {k: result[k] for k in self.compiled.variables}
         p0 = {k: result[k] for k in self.compiled.parameters}
-        return Problem(self.compiled.func, t_span, y0, p0, transform=transform.func)
+        return Problem(
+            self.compiled.func,
+            t_span,
+            y0,
+            p0,
+            transform=compiled_transform.func,
+        )
 
     def solve(
         self,
