@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import ChainMap
 from dataclasses import dataclass
-from typing import Any, Callable, Hashable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -23,6 +23,11 @@ from .compile import (
     depends_on_at_least_one_variable_or_time,
 )
 from .types import Constant, Derivative, Initial, Number, Parameter, System, Variable
+
+if TYPE_CHECKING:
+    import ipywidgets
+
+Components = Constant | Parameter | Variable | Derivative
 
 
 @dataclass
@@ -63,9 +68,7 @@ class Simulator:
 
     def create_problem(
         self,
-        values: dict[
-            Constant | Parameter | Variable | Derivative, Initial | Symbol
-        ] = {},
+        values: Mapping[Components, Initial | Symbol] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
         transform: Sequence[Symbol] | Mapping[Hashable, Symbol] | None = None,
@@ -116,9 +119,7 @@ class Simulator:
 
     def solve(
         self,
-        values: dict[
-            Constant | Parameter | Variable | Derivative, Initial | Symbol
-        ] = {},
+        values: Mapping[Components, Initial | Symbol] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
         times: ArrayLike,
@@ -197,9 +198,7 @@ class Simulator:
 
     def interact(
         self,
-        values: dict[
-            Constant | Parameter | Variable | Derivative, tuple[float, ...]
-        ] = {},
+        values: Mapping[Components, tuple[float, ...] | ipywidgets.FloatSlider] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
         times: ArrayLike,
