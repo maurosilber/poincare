@@ -417,7 +417,7 @@ def identity_transform(t: float, y: Array, p: Array, out: MutableArray) -> Array
 def compile_transform(
     system: System | type[System],
     compiled: Compiled,
-    expresions: dict[str, Symbol] | None = None,
+    expresions: Mapping[str, Symbol] | None = None,
 ) -> Compiled[Variable | Derivative, Transform]:
     if expresions is None:
         return Compiled(
