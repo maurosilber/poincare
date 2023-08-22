@@ -208,13 +208,21 @@ def test_shadowed_equations():
             eq = x.derive() << 1
 
 
-@mark.xfail(reason="Not yet implemented")
 def test_outer_composition():
     class Particle(System):
         x: Variable = initial(default=0)
 
-    with raises(TypeError):
+    class Model(System):
+        p: Particle = Particle(x=0)
+        eq = p.x.derive() << p.x
 
-        class Model(System):
-            p: Particle = Particle(x=0)
-            eq = p.x.derive() << p.x
+    assert Model.p.x is Model.eq.lhs.variable
+    assert Model.p.x is Model.eq.rhs
+
+    model = Model()
+    assert model.p.x is model.eq.lhs.variable
+    assert model.p.x is model.eq.rhs
+
+    model = Model(p=Particle(x=1))
+    assert model.p.x is model.eq.lhs.variable
+    assert model.p.x is model.eq.rhs

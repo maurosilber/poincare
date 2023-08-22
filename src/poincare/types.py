@@ -325,12 +325,11 @@ class Equation(Node):
         units.check_equations_units(self.lhs, self.rhs)
 
     def _copy_from(self, parent: System):
-        variable = getattr(parent, self.lhs.variable.name)
-        if isinstance(self.rhs, Symbol):
-            rhs = self.rhs.subs(NodeMapper(parent))
-        else:
-            rhs = self.rhs
-        return self.__class__(Derivative(variable, order=self.lhs.order), rhs)
+        mapper = NodeMapper(parent)
+        variable = mapper.get(self.lhs.variable)
+        lhs = Derivative(variable, order=self.lhs.order)
+        rhs = substitute(self.rhs, mapper)
+        return self.__class__(lhs, rhs)
 
     def __repr__(self):
         return f"Equation({self.lhs} << {self.rhs})"

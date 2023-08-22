@@ -113,7 +113,17 @@ class NodeMapper:
         self.cls = obj.__class__
 
     def get(self, item: T, default: T | None = None) -> T:
-        if isinstance(item, Node) and item.parent is self.cls:
-            return item.__get__(self.obj, self.cls)
+        if not isinstance(item, Node):
+            return item
+
+        path = [item.name]
+        while (item := item.parent) is not None:
+            if item is self.cls:
+                item = self.obj
+                for p in path[::-1]:
+                    item = getattr(item, p)
+                return item
+            else:
+                path.append(item.name)
         else:
             return item
