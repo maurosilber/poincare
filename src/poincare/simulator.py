@@ -11,11 +11,11 @@ import pint_pandas
 from numpy.typing import ArrayLike
 from symbolite import Symbol
 
+from . import solvers
 from ._node import Node
 from ._utils import eval_content
 from .compile import (
     RHS,
-    Array,
     Backend,
     Transform,
     compile_diffeq,
@@ -54,12 +54,6 @@ def get_scale(q: Number | pint.Quantity) -> Number | pint.Quantity:
         return scale * unit
     else:
         return 1
-
-
-@dataclass
-class Solution:
-    t: Array
-    y: Array
 
 
 class Simulator:
@@ -150,41 +144,21 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
         times: ArrayLike,
+        solver=solvers.odeint,
     ):
-        from scipy.integrate import odeint
-
-        if t_span[0] != 0:
-            raise NotImplementedError("odeint only works from t=0")
-
         times = np.asarray(times)
         problem = self.create_problem(values, t_span=t_span)
-        dy = np.empty_like(problem.y)
-        result = odeint(
-            problem.rhs,
-            problem.y,
-            times,
-            args=(problem.p, dy),
-            tfirst=True,
-        )
-        result = self.transform.func(
-            times,
-            result.T,
-            problem.p,
-            np.empty(
-                (times.size, len(self.transform.output)),
-                dtype=result.dtype,
-            ).T,
-        ).T
+        solution = solver(problem, save_at=times)
         return pd.DataFrame(
             {
                 k: pint_pandas.PintArray(x * s.magnitude, pint_pandas.PintType(s.units))
                 if isinstance(s, pint.Quantity)
                 else x * s
                 for k, s, x in zip(
-                    self.transform.output.keys(), problem.scale, result.T
+                    self.transform.output.keys(), problem.scale, solution.y.T
                 )
             },
-            index=pd.Series(times, name="time"),
+            index=pd.Series(solution.t, name="time"),
         )
 
     def interact(
