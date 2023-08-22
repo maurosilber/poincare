@@ -189,6 +189,44 @@ def test_function():
         p: Parameter = assign(default=scalar.cos(time * u.Hz))
 
 
+def test_problem_units():
+    class Model(System):
+        x: Variable = initial(default=1 * u.m)
+        T: Parameter = assign(default=1 * u.s)
+        eq = x.derive() << -x / T
+
+    sim = Simulator(Model)
+
+    problem = sim.create_problem()
+    assert problem.y == np.array([1])
+    assert problem.p == np.array([1])
+    assert problem.scale == [1 * u.m]
+
+    problem = sim.create_problem(values={Model.x: 10 * u.cm, Model.T: 10 * u.ms})
+    assert problem.y == np.array([0.1])
+    assert problem.p == np.array([0.01])
+    assert problem.scale == [100 * u.cm]
+
+
+def test_problem_with_transform_units():
+    class Model(System):
+        x: Variable = initial(default=1 * u.m)
+        T: Parameter = assign(default=1 * u.s)
+        eq = x.derive() << -x / T
+
+    sim = Simulator(Model, transform={"x": Model.x * Model.T})
+
+    problem = sim.create_problem()
+    assert problem.y == np.array([1])
+    assert problem.p == np.array([1])
+    assert problem.scale == [1 * u.m * u.s]
+
+    problem = sim.create_problem(values={Model.x: 10 * u.cm, Model.T: 10 * u.ms})
+    assert problem.y == np.array([0.1])
+    assert problem.p == np.array([0.01])
+    assert problem.scale == [100 * u.cm * 1000 * u.ms]
+
+
 def test_simulator_values():
     class Model(System):
         x: Variable = initial(default=1)

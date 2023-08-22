@@ -92,9 +92,9 @@ def test_parameter_dependent_parameters():
     assert set(sim.compiled.parameters) == {Model.p}
     assert {Model.p0, Model.p, Model.x} == sim.compiled.mapper.keys()
     # but initial values can be modified through p0
-    assert sim.create_problem().p == {Model.p: 0}
-    assert sim.create_problem(values={Model.p: 1}).p == {Model.p: 1}
-    assert sim.create_problem(values={Model.p0: 1}).p == {Model.p: 1}
+    assert sim.create_problem().p[0] == 0
+    assert sim.create_problem(values={Model.p: 1}).p[0] == 1
+    assert sim.create_problem(values={Model.p0: 1}).p[0] == 1
 
     # must recompile to assign a function to p or p0
     t = Model.time

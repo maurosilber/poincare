@@ -34,9 +34,26 @@ Components = Constant | Parameter | Variable | Derivative
 class Problem:
     rhs: RHS
     t: tuple[float, float]
-    y: dict[Symbol, Number | pint.Quantity]
-    p: dict[Symbol, Number | pint.Quantity]
+    y: Sequence[Number]
+    p: Sequence[Number]
     transform: Transform
+    scale: Sequence[Number | pint.Quantity]
+
+
+def rescale(q: Number | pint.Quantity) -> Number:
+    if isinstance(q, pint.Quantity):
+        return q.to_base_units().magnitude
+    else:
+        return q
+
+
+def get_scale(q: Number | pint.Quantity) -> Number | pint.Quantity:
+    if isinstance(q, pint.Quantity):
+        unit = q.units
+        scale = (1 / unit).to_base_units().magnitude
+        return scale * unit
+    else:
+        return 1
 
 
 @dataclass
@@ -99,7 +116,7 @@ class Simulator:
                             q.units, pint.Unit("dimensionless"), extra_msg=f" for {k}"
                         )
 
-        content = ChainMap(values, self.compiled.mapper)
+        content = ChainMap(values, self.compiled.mapper, self.transform.output)
         assert self.compiled.libsl is not None
         result = eval_content(
             content,
@@ -107,14 +124,24 @@ class Simulator:
             is_root=lambda x: isinstance(x, Number | pint.Quantity),
             is_dependency=lambda x: isinstance(x, Node),
         )
-        y0 = {k: result[k] for k in self.compiled.variables}
-        p0 = {k: result[k] for k in self.compiled.parameters}
+        y0 = np.fromiter(
+            map(rescale, (result[k] for k in self.compiled.variables)),
+            dtype=float,
+            count=len(self.compiled.variables),
+        )
+        p0 = np.fromiter(
+            map(rescale, (result[k] for k in self.compiled.parameters)),
+            dtype=float,
+            count=len(self.compiled.parameters),
+        )
+        scale = [get_scale(result[k]) for k in self.transform.output.keys()]
         return Problem(
-            self.compiled.func,
-            t_span,
-            y0,
-            p0,
+            rhs=self.compiled.func,
+            t=t_span,
+            y=y0,
+            p=p0,
             transform=compiled_transform.func,
+            scale=scale,
         )
 
     def solve(
@@ -130,68 +157,32 @@ class Simulator:
             raise NotImplementedError("odeint only works from t=0")
 
         times = np.asarray(times)
-
-        def to_magnitude(x):
-            if isinstance(x, pint.Quantity):
-                return x.to_base_units().magnitude
-            else:
-                return x
-
-        def from_magnitude(x, x0):
-            if isinstance(x0, pint.Quantity):
-                unit = x0.units
-                scale = (1 * x0.to_base_units().units).m_as(unit)
-                if isinstance(x, np.ndarray):
-                    return pint_pandas.PintArray(
-                        x * scale,
-                        pint_pandas.PintType(unit),
-                    )
-                else:
-                    return (x * scale).to(unit)
-            else:
-                return x
-
         problem = self.create_problem(values, t_span=t_span)
-        y = np.fromiter(
-            map(to_magnitude, problem.y.values()),
-            dtype=float,
-            count=len(problem.y),
-        )
-        p = np.fromiter(
-            map(to_magnitude, problem.p.values()),
-            dtype=float,
-            count=len(problem.p),
-        )
-        dy = np.empty_like(y)
+        dy = np.empty_like(problem.y)
         result = odeint(
             problem.rhs,
-            y,
+            problem.y,
             times,
-            args=(p, dy),
+            args=(problem.p, dy),
             tfirst=True,
         )
         result = self.transform.func(
             times,
             result.T,
-            p,
+            problem.p,
             np.empty(
                 (times.size, len(self.transform.output)),
                 dtype=result.dtype,
             ).T,
         ).T
-
-        output_units = eval_content(
-            ChainMap(self.transform.output, problem.p, problem.y),
-            self.transform.libsl,
-            is_root=lambda x: isinstance(x, Number | pint.Quantity),
-            is_dependency=lambda x: isinstance(x, Node),
-        )
-        output_units = {k: output_units[k] for k in self.transform.output.keys()}
-
         return pd.DataFrame(
             {
-                k: from_magnitude(v, v0)
-                for (k, v0), v in zip(output_units.items(), result.T)
+                k: pint_pandas.PintArray(x * s.magnitude, pint_pandas.PintType(s.units))
+                if isinstance(s, pint.Quantity)
+                else x * s
+                for k, s, x in zip(
+                    self.transform.output.keys(), problem.scale, result.T
+                )
             },
             index=pd.Series(times, name="time"),
         )
