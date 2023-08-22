@@ -118,7 +118,7 @@ class NodeMapper:
 
         path = [item.name]
         while (item := item.parent) is not None:
-            if item is self.cls:
+            if isinstance(item, type) and issubclass(self.cls, item):
                 item = self.obj
                 for p in path[::-1]:
                     item = getattr(item, p)
