@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar, Literal, Sequence, TypeVar, overload
+from typing import Any, ClassVar, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
 import pint
@@ -458,6 +458,15 @@ class System(Node, metaclass=EagerNamer):
                     [f"{k} expected {ann} got {t}" for k, ann, t in mismatched_types]
                 )
             )
+
+    def __getattribute__(self, name: str) -> Any:
+        value = super().__getattribute__(name)
+        if isinstance(value, Symbol) and not isinstance(value, Node):
+            # Symbol is not a descriptor that knows how to recreate itself in the new instance,
+            # but might have Nodes inside that need to be recreated.
+            return substitute(value, NodeMapper(self))
+        else:
+            return value
 
     def __init__(self, *args, **kwargs):
         if len(args) > 0:
