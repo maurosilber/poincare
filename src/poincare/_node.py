@@ -116,14 +116,15 @@ class NodeMapper:
         if not isinstance(item, Node):
             return item
 
-        path = [item.name]
+        path = [item]
         while (item := item.parent) is not None:
             if isinstance(item, type) and issubclass(self.cls, item):
                 item = self.obj
                 for p in path[::-1]:
-                    item = getattr(item, p)
+                    # It is important to use __get__ instead of getattr(item, p.name)
+                    item = p.__get__(item, item.__class__)
                 return item
             else:
-                path.append(item.name)
+                path.append(item)
         else:
             return item
