@@ -164,8 +164,10 @@ def depends_on_at_least_one_variable_or_time(value: Any, *, time: Parameter) -> 
 def get_derivative(variable: Variable, order: int) -> Variable | Derivative:
     if order == 0:
         return variable
-    else:
+    try:
         return variable.derivatives[order]
+    except KeyError:
+        return Derivative(variable, order=order)
 
 
 def build_equation_maps(

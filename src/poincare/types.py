@@ -236,7 +236,10 @@ class Derivative(Node, Symbol):
         self.order = order
         self.initial = initial
         units.check_derivative_units(self, initial)
-        self.variable.derivatives[order] = self
+
+    def __set_name__(self, cls: Node, name: str):
+        super().__set_name__(cls, name)
+        self.variable.derivatives[self.order] = self
 
     def eval(self, libsl=None):
         if libsl is libabstract:
