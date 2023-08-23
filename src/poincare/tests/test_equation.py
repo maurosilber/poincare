@@ -192,12 +192,6 @@ def test_unassigned_equation():
             x = Variable(initial=0)
             x.derive() << 0
 
-    with raises(NameError):
-
-        class UnassignedDerive(System):
-            x = Variable(initial=0)
-            x.derive() << 0
-
 
 def test_shadowed_equations():
     with raises(NameError):
