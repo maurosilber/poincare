@@ -163,7 +163,7 @@ class Simulator:
 
     def interact(
         self,
-        values: Mapping[Components, tuple[float, ...] | ipywidgets.FloatSlider]
+        values: Mapping[Components, tuple[float, ...] | ipywidgets.Widget]
         | Sequence[Components] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
