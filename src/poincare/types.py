@@ -414,17 +414,24 @@ class OwnedNamerDict(dict):
 
 
 class EagerNamer(type):
-    @classmethod
-    def __prepare__(cls, name, bases: tuple[type, ...]):
-        def isinstance_cls(x):
-            return isinstance(x, cls)
+    _abstract: bool
 
-        # Prevent subclassing System subclassses
-        for base in filter(isinstance_cls, bases):
-            if any(map(isinstance_cls, base.__bases__)):
-                raise TypeError(f"cannot subclass {base.__name__}")
+    @classmethod
+    def __prepare__(cls, name, bases: tuple[type, ...], *, abstract: bool = False):
+        def is_abstract(x):
+            return isinstance(x, cls) and not x._abstract
+
+        if not abstract:
+            # Prevent subclassing System subclassses
+            for base in filter(is_abstract, bases):
+                if any(map(is_abstract, base.__bases__)):
+                    raise TypeError(f"cannot subclass {base.__name__}")
 
         return OwnedNamerDict()
+
+    def __init__(self, name, bases, namespace, *, abstract: bool = False):
+        super().__init__(name, bases, namespace)
+        self._abstract = abstract
 
     def __str__(self):
         return ""
@@ -447,7 +454,7 @@ class System(Node, metaclass=EagerNamer):
     _required: ClassVar[set[str]]
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]
 
-    def __init_subclass__(cls) -> None:
+    def __init_subclass__(cls, **kwargs) -> None:
         cls._annotations = get_annotations(cls)
 
         for k in ("_annotations", "_required", "_kwargs", "name", "parent"):
