@@ -296,7 +296,6 @@ class Derivative(Node, Symbol):
         return Derivative(self.variable, initial=initial, order=self.order + 1)
 
     def __lshift__(self, other) -> Equation:
-        _assign_equation_order(variable=self.variable, order=self.order)
         return Equation(self, other)
 
     def __hash__(self) -> int:
@@ -326,6 +325,10 @@ class Equation(Node):
 
     def __post_init__(self):
         units.check_equations_units(self.lhs, self.rhs)
+
+    def __set_name__(self, cls, name):
+        super().__set_name__(cls, name)
+        _assign_equation_order(variable=self.lhs.variable, order=self.lhs.order)
 
     def _copy_from(self, parent: System):
         mapper = NodeMapper(parent)

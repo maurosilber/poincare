@@ -24,7 +24,7 @@ def test_equation_outside_class():
         x: Variable = initial(default=0)
 
     Base.x.derive() << 1
-    assert Base.x.equation_order == 0
+    assert Base.x.equation_order is None
 
 
 def test_equation_in_subclass():
@@ -34,4 +34,4 @@ def test_equation_in_subclass():
     class Extended(Base):
         eq = Base.x.derive() << 1
 
-    assert Base.x.equation_order == 0
+    assert Base.x.equation_order is None
