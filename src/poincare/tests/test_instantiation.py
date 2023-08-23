@@ -1,6 +1,6 @@
 """Test model instantiation."""
 
-from pytest import raises
+from pytest import mark, raises
 
 from ..types import Constant, Derivative, Parameter, System, Variable, assign, initial
 
@@ -88,6 +88,7 @@ def test_internal_variable():
         Model(x=1)  # type: ignore
 
 
+@mark.xfail(reason="Subclassing not implemented.")
 def test_extended_subclass():
     class Model(System):
         x: Variable = initial(default=0)

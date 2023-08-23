@@ -3,6 +3,8 @@
 It allows hashing and using components in dictionaries.
 """
 
+from pytest import mark
+
 from ..types import Constant, System, Variable, assign, initial
 
 
@@ -35,6 +37,7 @@ def test_empty_system():
     assert Model1() != Model2()
 
 
+@mark.xfail(reason="Subclassing not implemented")
 def test_subclass_equal():
     class Model(System):
         x: Variable = initial(default=0)
@@ -45,6 +48,7 @@ def test_subclass_equal():
     assert Model(x=1) != SubModel(x=1)
 
 
+@mark.xfail(reason="Subclassing not implemented")
 def test_subclass_extended():
     class Model(System):
         x: Variable = initial(default=0)

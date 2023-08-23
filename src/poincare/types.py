@@ -415,7 +415,15 @@ class OwnedNamerDict(dict):
 
 class EagerNamer(type):
     @classmethod
-    def __prepare__(cls, name, bases):
+    def __prepare__(cls, name, bases: tuple[type, ...]):
+        def isinstance_cls(x):
+            return isinstance(x, cls)
+
+        # Prevent subclassing System subclassses
+        for base in filter(isinstance_cls, bases):
+            if any(map(isinstance_cls, base.__bases__)):
+                raise TypeError(f"cannot subclass {base.__name__}")
+
         return OwnedNamerDict()
 
     def __str__(self):
