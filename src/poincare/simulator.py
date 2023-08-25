@@ -188,9 +188,14 @@ class Simulator:
         value_map = {}
         for k, v in values.items():
             match v:
-                case numbers.Real() as v:
+                case numbers.Real() as default:
+                    if v == 0:
+                        v = 1
                     widget = ipywidgets.FloatSlider(
-                        v, min=v / 10, max=v * 10, step=0.1 * v
+                        default,
+                        min=default / 10,
+                        max=v * 10,
+                        step=0.1 * v,
                     )
                 case (min, max, step):
                     v = self.compiled.mapper[k]
