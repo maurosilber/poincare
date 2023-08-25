@@ -186,7 +186,9 @@ class Simulator:
 
         name_map = {}
         value_map = {}
+        unit_map = {}
         for k, v in values.items():
+            unit = 1
             match v:
                 case numbers.Real() as default:
                     if v == 0:
@@ -196,6 +198,10 @@ class Simulator:
                         min=default / 10,
                         max=v * 10,
                         step=0.1 * v,
+                    )
+                case pint.Quantity(magnitude=v, units=unit):
+                    widget = ipywidgets.FloatSlider(
+                        v, min=v / 10, max=v * 10, step=0.1 * v
                     )
                 case (min, max, step):
                     v = self.compiled.mapper[k]
@@ -210,10 +216,11 @@ class Simulator:
             name = str(k)
             name_map[name] = k
             value_map[name] = widget
+            unit_map[name] = unit
 
         def solve_and_plot(**kwargs):
             result = self.solve(
-                {name_map[k]: v for k, v in kwargs.items()},
+                {name_map[k]: v * unit_map.get(k, 1) for k, v in kwargs.items()},
                 t_span=t_span,
                 times=times,
             )
