@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numbers
 from collections import ChainMap
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Hashable, Mapping, Sequence
@@ -187,7 +188,7 @@ class Simulator:
         value_map = {}
         for k, v in values.items():
             match v:
-                case float(v):
+                case numbers.Real() as v:
                     widget = ipywidgets.FloatSlider(
                         v, min=v / 10, max=v * 10, step=0.1 * v
                     )
