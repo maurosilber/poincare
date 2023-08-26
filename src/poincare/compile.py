@@ -217,10 +217,14 @@ def build_equation_maps(
             if named is time:
                 continue
             elif isinstance(named, Variable):
-                variables.add(named)
-                for order in range(named.equation_order):
-                    der = get_derivative(named, order)
-                    add_to_initials(der, der.initial, time=time)
+                if named.equation_order is None:
+                    parameters.add(named)
+                    add_to_initials(named, named.initial, time=time)
+                else:
+                    variables.add(named)
+                    for order in range(named.equation_order):
+                        der = get_derivative(named, order)
+                        add_to_initials(der, der.initial, time=time)
             elif isinstance(
                 named, Parameter
             ) and depends_on_at_least_one_variable_or_time(named.default, time=time):

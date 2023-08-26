@@ -91,3 +91,19 @@ def test_override_with_constants():
 def test_cyclic_initials():
     with raises(ValueError, match="Cyclic"):
         Simulator(Model).create_problem(values={Model.k0: Model.k2})
+
+
+def test_variable_as_parameter():
+    """Variable used in equation but without its own rate equation is a Parameter."""
+
+    class Model(System):
+        x = Variable(initial=1)
+        T = Variable(initial=2)
+        eq = x.derive() << -x / T
+
+    assert_initials(
+        Model,
+        values={Model.x: 1, Model.T: 2},
+        expected_parameters={Model.T: 2},
+        expected_variables={Model.x: 1},
+    )
