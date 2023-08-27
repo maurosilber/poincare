@@ -1,12 +1,20 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from poincare import Derivative, Parameter, Simulator, System, Variable, assign, initial
+from poincare import (
+    Derivative,
+    Independent,
+    Parameter,
+    Simulator,
+    System,
+    Variable,
+    assign,
+    initial,
+)
 from symbolite import scalar
-
-t = System.time
 
 
 class Oscillator(System):
+    t = Independent()
     x: Variable = initial(default=1)
     vx: Derivative = x.derive(initial=0)
     phase: Parameter = assign(default=0)
@@ -24,7 +32,7 @@ if __name__ == "__main__":
     result["x"].rename("cos(t-1.3)").plot()
 
     # To change functional form, must be recompiled
-    sim = Simulator(Oscillator(F=scalar.sin(t)))
+    sim = Simulator(Oscillator(F=scalar.sin(Oscillator.t)))
     result = sim.solve(times=np.linspace(0, 50, 1000))
     result["x"].rename("sin(t)").plot()
 

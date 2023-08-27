@@ -30,6 +30,7 @@ from .types import (
     Derivative,
     Equation,
     EquationGroup,
+    Independent,
     Initial,
     Number,
     Parameter,
@@ -56,6 +57,7 @@ class Transform(Protocol):
 
 @dataclass(frozen=True, kw_only=True)
 class Compiled(Generic[V, F]):
+    independent: Sequence[Independent]
     variables: Sequence[V]
     parameters: Sequence[Symbol]
     mapper: dict[Symbol, Any]
@@ -144,18 +146,17 @@ def get_equations(system: System | type[System]) -> dict[Derivative, list[ExprRH
     return equations
 
 
-def depends_on_at_least_one_variable_or_time(value: Any, *, time: Parameter) -> bool:
+def depends_on_at_least_one_variable_or_time(value: Any) -> bool:
     if not isinstance(value, Symbol):
         return False
 
     for named in value.yield_named():
-        if named is time:
+        if isinstance(named, Independent):
             return True
         elif isinstance(named, Variable | Derivative):
             return True
         elif isinstance(named, Parameter) and depends_on_at_least_one_variable_or_time(
-            named.default,
-            time=time,
+            named.default
         ):
             return True
     return False
@@ -191,10 +192,11 @@ def build_equation_maps(
     }
 
     initials = {}
+    independent: set[Independent] = set()
     parameters: set[Parameter] = set()
     variables: set[Variable] = set()
 
-    def add_to_initials(name: Symbol, value, *, time: Parameter):
+    def add_to_initials(name: Symbol, value):
         if value is None:
             raise TypeError(
                 f"Missing initial value for {name}. System must be instantiated."
@@ -204,48 +206,55 @@ def build_equation_maps(
             return
 
         for named in value.yield_named():
-            if named is time:
-                continue
-            if isinstance(named, Parameter | Constant):
-                add_to_initials(named, named.default, time=time)
+            if isinstance(named, Independent):
+                independent.add(named)
+            elif isinstance(named, Parameter | Constant):
+                add_to_initials(named, named.default)
 
-    def process_symbol(symbol, *, time: Parameter, equation: bool):
+    def process_symbol(symbol, *, equation: bool):
         if not isinstance(symbol, Symbol):
             return
 
         for named in symbol.yield_named():
-            if named is time:
-                continue
+            if isinstance(named, Independent):
+                independent.add(named)
             elif isinstance(named, Variable):
                 if named.equation_order is None:
                     if equation:
                         parameters.add(named)
-                    add_to_initials(named, named.initial, time=time)
+                    add_to_initials(named, named.initial)
                 else:
                     if equation:
                         variables.add(named)
                     for order in range(named.equation_order):
                         der = get_derivative(named, order)
-                        add_to_initials(der, der.initial, time=time)
+                        add_to_initials(der, der.initial)
             elif isinstance(
                 named, Parameter
-            ) and depends_on_at_least_one_variable_or_time(named.default, time=time):
+            ) and depends_on_at_least_one_variable_or_time(named.default):
                 algebraic[named] = named.default
-                process_symbol(named.default, time=time, equation=equation)
-                add_to_initials(named, named.default, time=time)
+                process_symbol(named.default, equation=equation)
+                add_to_initials(named, named.default)
             elif isinstance(named, Constant | Parameter):
                 if equation:
                     parameters.add(named)
-                add_to_initials(named, named.default, time=time)
+                add_to_initials(named, named.default)
 
-    time = system.time
     for derivative, eq in equations.items():
-        process_symbol(derivative.variable, time=time, equation=True)
-        process_symbol(eq, time=time, equation=True)
-    for symbol in system._yield(Constant | Parameter | Variable):
-        process_symbol(symbol, time=time, equation=False)
+        process_symbol(derivative.variable, equation=True)
+        process_symbol(eq, equation=True)
+    for symbol in system._yield(Independent | Constant | Parameter | Variable):
+        process_symbol(symbol, equation=False)
 
-    root = {system.time, *variables, *parameters}
+    match len(independent):
+        case 0:
+            time = Independent(default=0)
+        case 1:
+            time = independent.pop()
+        case _:
+            raise TypeError(f"more than one independent variable found: {independent}")
+
+    root = {time, *variables, *parameters}
     for v in variables:
         root.update(v.derivatives[order] for order in range(1, v.equation_order))
 
@@ -273,6 +282,7 @@ def build_equation_maps(
     equations = {k: content[k] for k in equations.keys()}
     sorted_variables = sorted(variables, key=str)
     return Compiled(
+        independent=(time,),
         variables=sorted_variables,
         parameters=sorted(parameters, key=str),
         mapper=initials,
@@ -312,6 +322,7 @@ def build_first_order_symbolic_ode(
         variables.append(lhs)
 
     return Compiled(
+        independent=maps.independent,
         variables=variables,
         output={str(v): v for v in variables},
         func=diff_eqs,
@@ -335,7 +346,7 @@ def build_first_order_vectorized_body(
 ) -> Compiled[Variable | Derivative, str]:
     symbolic = build_first_order_symbolic_ode(system)
     mapping: Mapping = vector_mapping(
-        system.time,
+        symbolic.independent[0],
         symbolic.variables,
         symbolic.parameters,
     )
@@ -367,6 +378,7 @@ def build_first_order_vectorized_body(
     )
 
     return Compiled(
+        independent=symbolic.independent,
         variables=symbolic.variables,
         parameters=symbolic.parameters,
         mapper=symbolic.mapper,
@@ -386,6 +398,7 @@ def build_first_order_functions(
     )
     lm = symbolite_compile(vectorized.func, libsl)
     return Compiled(
+        independent=vectorized.independent,
         variables=vectorized.variables,
         parameters=vectorized.parameters,
         mapper=vectorized.mapper,
@@ -435,18 +448,26 @@ def compile_transform(
         return Compiled(
             func=identity_transform,
             output=compiled.output,
+            independent=compiled.independent,
             variables=compiled.variables,
             parameters=compiled.parameters,
             mapper=compiled.mapper,
             libsl=compiled.libsl,
         )
 
+    root = {
+        x: x
+        for x in (
+            *compiled.independent,
+            *compiled.variables,
+            *compiled.parameters,
+        )
+    }
+
     def is_root(x):
-        if x is system.time:
+        if isinstance(x, Number | pint.Quantity):
             return True
-        elif isinstance(x, Number | pint.Quantity):
-            return True
-        elif x in compiled.parameters or x in compiled.variables:
+        elif x in root:
             return True
         else:
             return False
@@ -454,7 +475,7 @@ def compile_transform(
     content = {
         **expresions,
         **compiled.mapper,
-        **{x: x for x in (system.time, *compiled.variables, *compiled.parameters)},
+        **root,
     }
     content = eval_content(
         content,
@@ -465,7 +486,7 @@ def compile_transform(
     expresions = {k: content[k] for k in expresions}
 
     mapping: Mapping = vector_mapping(
-        system.time,
+        compiled.independent[0],
         compiled.variables,
         compiled.parameters,
     )
@@ -495,6 +516,7 @@ def compile_transform(
     return Compiled(
         func=lm["transform"],
         output=expresions,
+        independent=compiled.independent,
         variables=compiled.variables,
         parameters=compiled.parameters,
         mapper=compiled.mapper,

@@ -101,7 +101,7 @@ class Parameter(Node, Scalar):
         return self.__class__(default=substitute(self.default, NodeMapper(parent)))
 
     def __set__(self, obj, value: Initial | Symbol):
-        if isinstance(value, Parameter) and not isinstance(value, Time):
+        if isinstance(value, Parameter):
             super().__set__(obj, value)
         elif isinstance(value, Initial | Symbol):
             # Get or create instance with getattr
@@ -395,18 +395,55 @@ def initial(*, default: Initial | None = None, init: bool = True) -> Variable:
 
 
 @units.register_with_pint
-class Time(Parameter):
+class Independent(Node, Scalar):
+    def __init__(self, *, default: Initial | Symbol | None = 0):
+        self.default = default
+        units.check_units(self, default)
+
     def _copy_from(self, parent: System):
-        raise NotImplementedError
+        return self.__class__(default=substitute(self.default, NodeMapper(parent)))
 
     def __get__(self, obj: System | None, cls):
         if obj is None or obj.parent is None:
             return self
+
+        independent = set(obj.parent._yield(self.__class__, recursive=False))
+        match len(independent):
+            case 0:
+                raise NotImplementedError("set independent on parent")
+            case 1:
+                return independent.pop()
+            case _:
+                raise NotADirectoryError("more than one independent variable")
+
+    def eval(self, libsl=None):
+        if libsl is libabstract:
+            return self
+        elif self.default is None:
+            raise units.EvalUnitError
         else:
-            return obj.parent.time
+            return evaluate(self.default, libsl)
 
     def __set__(self, obj, value: Initial | Symbol):
-        raise TypeError("cannot modify time")
+        if isinstance(value, Independent):
+            super().__set__(obj, value)
+        elif isinstance(value, Initial | Symbol):
+            # Get or create instance with getattr
+            # Update initial value
+            variable: Self = getattr(obj, self.name)
+            units.check_units(variable, value)
+            variable.default = value
+        else:
+            raise TypeError(f"unexpected type {type(value)} for {self.name}")
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    def __eq__(self, other: Self):
+        if other.__class__ is not self.__class__:
+            return NotImplemented
+
+        return self.default == other.default and super().__eq__(other)
 
 
 class OwnedNamerDict(dict):
@@ -454,7 +491,6 @@ class EagerNamer(type):
 )
 class System(Node, metaclass=EagerNamer):
     parent: System
-    time = Time(default=0)
     _kwargs: dict
     _required: ClassVar[set[str]]
     _annotations: ClassVar[dict[str, type[Variable | Derivative | System]]]

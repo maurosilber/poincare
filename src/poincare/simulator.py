@@ -23,7 +23,15 @@ from .compile import (
     compile_transform,
     depends_on_at_least_one_variable_or_time,
 )
-from .types import Constant, Derivative, Initial, Number, Parameter, System, Variable
+from .types import (
+    Constant,
+    Derivative,
+    Initial,
+    Number,
+    Parameter,
+    System,
+    Variable,
+)
 
 if TYPE_CHECKING:
     import ipywidgets
@@ -90,13 +98,12 @@ class Simulator:
         else:
             compiled_transform = self._compile_transform(transform)
 
-        time = self.model.time
         if any(
-            depends_on_at_least_one_variable_or_time(self.compiled.mapper[k], time=time)
-            or depends_on_at_least_one_variable_or_time(v, time=time)
+            depends_on_at_least_one_variable_or_time(self.compiled.mapper[k])
+            or depends_on_at_least_one_variable_or_time(v)
             for k, v in values.items()
         ):
-            raise ValueError("must recompile to change assignments")
+            raise ValueError("must recompile to change time-dependent assignments")
 
         for k, v in values.items():
             default = self.compiled.mapper[k]
@@ -116,7 +123,7 @@ class Simulator:
             values,
             self.compiled.mapper,
             self.transform.output,
-            {time: t_span[0]},
+            {self.compiled.independent[0]: t_span[0]},
         )
         assert self.compiled.libsl is not None
         result = eval_content(

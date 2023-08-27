@@ -2,9 +2,9 @@ from .simulator import Simulator
 from .types import (
     Constant,
     Derivative,
+    Independent,
     Parameter,
     System,
-    Time,
     Variable,
     assign,
     initial,
@@ -13,9 +13,9 @@ from .types import (
 __all__ = [
     "Constant",
     "Derivative",
+    "Independent",
     "Parameter",
     "System",
-    "Time",
     "Variable",
     "assign",
     "initial",

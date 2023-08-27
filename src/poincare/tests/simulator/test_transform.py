@@ -3,11 +3,11 @@ from pytest import mark
 
 from ... import Constant, Parameter, System, Variable
 from ...simulator import Simulator
-from ...types import Time
+from ...types import Independent
 
 
 class Model(System):
-    time = Time(default=0)
+    time = Independent(default=0)
     c = Constant(default=0)
     unused = Constant(default=0)
     x = Variable(initial=c)

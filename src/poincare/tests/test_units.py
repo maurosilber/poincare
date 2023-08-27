@@ -3,10 +3,10 @@ from pint import DimensionalityError, get_application_registry
 from poincare import (
     Constant,
     Derivative,
+    Independent,
     Parameter,
     Simulator,
     System,
-    Time,
     Variable,
     assign,
     initial,
@@ -21,7 +21,7 @@ u = get_application_registry()
 @mark.parametrize(
     "value",
     [
-        Time(default=1 * u.s),
+        Independent(default=1 * u.s),
         Constant(default=1 * u.s),
         Parameter(default=1 * u.s),
         Variable(initial=1 * u.s),
@@ -119,7 +119,7 @@ def test_single_equation():
 
 def test_time():
     class Model(System):
-        time = Time(default=0 * u.s)
+        time = Independent(default=0 * u.s)
         x: Variable = initial(default=1 * u.m)
         eq = x.derive() << x / (time + 1 * u.s)
 
@@ -127,7 +127,7 @@ def test_time():
 @mark.parametrize(
     "func",
     [
-        lambda x: Time(default=x),
+        lambda x: Independent(default=x),
         lambda x: Constant(default=x),
         lambda x: Parameter(default=x),
         lambda x: Variable(initial=x),
@@ -148,7 +148,7 @@ def test_dependencies(func):
 @mark.parametrize(
     "func",
     [
-        lambda x: Time(default=x),
+        lambda x: Independent(default=x),
         lambda x: Constant(default=x),
         lambda x: Parameter(default=x),
         lambda x: Variable(initial=x),
@@ -181,11 +181,11 @@ def test_function():
     with raises(DimensionalityError):
 
         class WrongUnits(System):
-            time = Time(default=0 * u.s)
+            time = Independent(default=0 * u.s)
             p: Parameter = assign(default=scalar.cos(time))
 
     class Model(System):
-        time = Time(default=0 * u.s)
+        time = Independent(default=0 * u.s)
         p: Parameter = assign(default=scalar.cos(time * u.Hz))
 
 
