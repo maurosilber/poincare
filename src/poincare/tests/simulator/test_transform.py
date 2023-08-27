@@ -1,4 +1,5 @@
 import numpy as np
+from pytest import mark
 
 from ... import Constant, Parameter, System, Variable
 from ...simulator import Simulator
@@ -54,4 +55,12 @@ def test_number():
 def test_unused_variable():
     sim = Simulator(Model, transform={"unused": Model.unused})
     df = sim.solve(times=times)
+    assert np.all(df["unused"] == Model.unused.default)
+
+
+@mark.xfail(reason="Optimization not implemented.")
+def test_unused_variable_skips_solver():
+    """If the transform does not need to integrate the equations, it could skip that."""
+    sim = Simulator(Model, transform={"unused": Model.unused})
+    df = sim.solve(times=times, solver=None)
     assert np.all(df["unused"] == Model.unused.default)
