@@ -209,7 +209,7 @@ def build_equation_maps(
             if isinstance(named, Parameter | Constant):
                 add_to_initials(named, named.default, time=time)
 
-    def process_symbol(symbol, *, time: Parameter):
+    def process_symbol(symbol, *, time: Parameter, equation: bool):
         if not isinstance(symbol, Symbol):
             return
 
@@ -218,10 +218,12 @@ def build_equation_maps(
                 continue
             elif isinstance(named, Variable):
                 if named.equation_order is None:
-                    parameters.add(named)
+                    if equation:
+                        parameters.add(named)
                     add_to_initials(named, named.initial, time=time)
                 else:
-                    variables.add(named)
+                    if equation:
+                        variables.add(named)
                     for order in range(named.equation_order):
                         der = get_derivative(named, order)
                         add_to_initials(der, der.initial, time=time)
@@ -229,15 +231,19 @@ def build_equation_maps(
                 named, Parameter
             ) and depends_on_at_least_one_variable_or_time(named.default, time=time):
                 algebraic[named] = named.default
-                process_symbol(named.default, time=time)
+                process_symbol(named.default, time=time, equation=equation)
+                add_to_initials(named, named.default, time=time)
             elif isinstance(named, Constant | Parameter):
-                parameters.add(named)
+                if equation:
+                    parameters.add(named)
                 add_to_initials(named, named.default, time=time)
 
     time = system.time
     for derivative, eq in equations.items():
-        process_symbol(derivative.variable, time=time)
-        process_symbol(eq, time=time)
+        process_symbol(derivative.variable, time=time, equation=True)
+        process_symbol(eq, time=time, equation=True)
+    for symbol in system._yield(Constant | Parameter | Variable):
+        process_symbol(symbol, time=time, equation=False)
 
     root = {system.time, *variables, *parameters}
     for v in variables:

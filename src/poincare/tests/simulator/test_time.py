@@ -22,7 +22,6 @@ def test_no_time_dependent_parameters():
     sim = Simulator(Model)
     sim.solve(times=range(2))
     assert set(sim.compiled.parameters) == {Model.p}
-    assert {Model.c0, Model.c1, Model.p, Model.x} == sim.compiled.mapper.keys()
 
     sim.create_problem(values={Model.p: 1})
 
@@ -45,7 +44,6 @@ def test_time_dependent_parameters():
     sim = Simulator(Model)
     sim.solve(times=range(2))
     assert len(sim.compiled.parameters) == 0
-    assert {Model.x} == sim.compiled.mapper.keys()
 
     with raises(ValueError, match="recompile"):
         sim.create_problem(values={Model.p: 1})
@@ -67,7 +65,6 @@ def test_variable_dependent_parameters():
     sim = Simulator(Model)
     sim.solve(times=range(2))
     assert len(sim.compiled.parameters) == 0
-    assert {Model.x, Model.y} == sim.compiled.mapper.keys()
 
     with raises(ValueError, match="recompile"):
         sim.create_problem(values={Model.p: 1})
@@ -90,7 +87,6 @@ def test_parameter_dependent_parameters():
     sim.solve(times=range(2))
     # only p is part of the vector of parameters
     assert set(sim.compiled.parameters) == {Model.p}
-    assert {Model.p0, Model.p, Model.x} == sim.compiled.mapper.keys()
     # but initial values can be modified through p0
     assert sim.create_problem().p[0] == 0
     assert sim.create_problem(values={Model.p: 1}).p[0] == 1
@@ -108,19 +104,16 @@ def test_parameter_dependent_parameters():
     model = Model(p=t)
     sim = Simulator(model)
     assert len(sim.compiled.parameters) == 0
-    assert {Model.x} == sim.compiled.mapper.keys()
 
     # recompilation moves from parameter vector to parameter func
     model = Model(p=t * Model.p0)
     sim = Simulator(model)
     assert len(sim.compiled.parameters) == 1
-    assert {Model.p0, Model.x} == sim.compiled.mapper.keys()
 
     # recompilation moves from parameter vector to parameter func
     model = Model(p0=t)
     sim = Simulator(model)
     assert len(sim.compiled.parameters) == 0
-    assert {Model.x} == sim.compiled.mapper.keys()
 
 
 def test_parameter_dependent_parameters2():
@@ -134,10 +127,8 @@ def test_parameter_dependent_parameters2():
     sim = Simulator(Model)
     sim.solve(times=range(2))
     assert set(sim.compiled.parameters) == {Model.p}
-    assert {Model.x, Model.p, Model.p1, Model.p0} == sim.compiled.mapper.keys()
 
     model = Model(p0=Model.time)
     sim = Simulator(model)
     sim.solve(times=range(2))
     assert len(sim.compiled.parameters) == 0
-    assert {model.x} == sim.compiled.mapper.keys()

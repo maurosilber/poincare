@@ -91,9 +91,10 @@ class Simulator:
             compiled_transform = self._compile_transform(transform)
 
         time = self.model.time
-        if len(values.keys() - self.compiled.mapper) > 0 or any(
-            depends_on_at_least_one_variable_or_time(v, time=time)
-            for v in values.values()
+        if any(
+            depends_on_at_least_one_variable_or_time(self.compiled.mapper[k], time=time)
+            or depends_on_at_least_one_variable_or_time(v, time=time)
+            for k, v in values.items()
         ):
             raise ValueError("must recompile to change assignments")
 
@@ -111,7 +112,12 @@ class Simulator:
                             q.units, pint.Unit("dimensionless"), extra_msg=f" for {k}"
                         )
 
-        content = ChainMap(values, self.compiled.mapper, self.transform.output)
+        content = ChainMap(
+            values,
+            self.compiled.mapper,
+            self.transform.output,
+            {time: t_span[0]},
+        )
         assert self.compiled.libsl is not None
         result = eval_content(
             content,

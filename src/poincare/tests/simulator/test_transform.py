@@ -1,5 +1,4 @@
 import numpy as np
-from pytest import mark
 
 from ... import Constant, Parameter, System, Variable
 from ...simulator import Simulator
@@ -46,7 +45,13 @@ def test_non_variable():
     assert np.all(df["c"] == Model.c.default)
 
 
-@mark.xfail(reason="Not yet implemented")
+def test_number():
+    sim = Simulator(Model, transform={"my_number": 1})
+    df = sim.solve(times=times)
+    assert np.all(df["my_number"] == 1)
+
+
 def test_unused_variable():
-    df = Simulator(Model, transform={"unused": Model.unused}).solve(times=times)
+    sim = Simulator(Model, transform={"unused": Model.unused})
+    df = sim.solve(times=times)
     assert np.all(df["unused"] == Model.unused.default)
