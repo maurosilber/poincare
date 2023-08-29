@@ -2,7 +2,15 @@ from pytest import raises
 from symbolite import Symbol
 
 from ...simulator import Simulator
-from ...types import Constant, Derivative, Number, Parameter, System, Variable
+from ...types import (
+    Constant,
+    Derivative,
+    Independent,
+    Number,
+    Parameter,
+    System,
+    Variable,
+)
 
 
 class Model(System):
@@ -107,3 +115,14 @@ def test_variable_as_parameter():
         expected_parameters={Model.T: 2},
         expected_variables={Model.x: 1},
     )
+
+
+def test_time_dependent_parameter_outside_rate_equations():
+    class Model(System):
+        t = Independent()
+        c = Constant(default=0)
+        k = Parameter(default=c * t)
+        x = Variable(initial=0)
+        eq = x.derive() << -x
+
+    Simulator(Model)

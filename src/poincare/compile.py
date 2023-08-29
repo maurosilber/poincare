@@ -267,6 +267,7 @@ def build_equation_maps(
             return False
 
     content = {
+        **initials,
         **equations,
         **algebraic,
         **{x: x for x in root},
