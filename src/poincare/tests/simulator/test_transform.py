@@ -42,8 +42,13 @@ def test_sum_variable():
 
 def test_non_variable():
     # Should it shortcut and skip the solver?
-    df = Simulator(Model, transform={"c": Model.c}).solve(times=times)
+    sim = Simulator(Model, transform={"c": Model.c})
+
+    df = sim.solve(times=times)
     assert np.all(df["c"] == Model.c.default)
+
+    df = sim.solve(times=times, values={Model.c: Model.c.default + 1})
+    assert np.all(df["c"] == Model.c.default + 1)
 
 
 def test_number():
@@ -54,8 +59,12 @@ def test_number():
 
 def test_unused_variable():
     sim = Simulator(Model, transform={"unused": Model.unused})
+
     df = sim.solve(times=times)
     assert np.all(df["unused"] == Model.unused.default)
+
+    df = sim.solve(times=times, values={Model.unused: Model.unused.default + 1})
+    assert np.all(df["unused"] == Model.unused.default + 1)
 
 
 @mark.xfail(reason="Optimization not implemented.")
