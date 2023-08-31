@@ -158,11 +158,10 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
         save_at: Sequence[float],
-        solver=solvers.odeint,
+        solver=solvers.LSODA(),
     ):
-        save_at = np.asarray(save_at)
         problem = self.create_problem(values, t_span=t_span)
-        solution = solver(problem, save_at=save_at)
+        solution = solver(problem, save_at=np.asarray(save_at))
         return pd.DataFrame(
             {
                 k: pint_pandas.PintArray(x * s.magnitude, pint_pandas.PintType(s.units))
