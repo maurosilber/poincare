@@ -157,12 +157,12 @@ class Simulator:
         values: Mapping[Components, Initial | Symbol] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
-        times: ArrayLike,
+        save_at: Sequence[float],
         solver=solvers.odeint,
     ):
-        times = np.asarray(times)
+        save_at = np.asarray(save_at)
         problem = self.create_problem(values, t_span=t_span)
-        solution = solver(problem, save_at=times)
+        solution = solver(problem, save_at=save_at)
         return pd.DataFrame(
             {
                 k: pint_pandas.PintArray(x * s.magnitude, pint_pandas.PintType(s.units))
@@ -235,7 +235,7 @@ class Simulator:
             result = self.solve(
                 {name_map[k]: v * unit_map.get(k, 1) for k, v in kwargs.items()},
                 t_span=t_span,
-                times=times,
+                save_at=times,
             )
             func(result)
 

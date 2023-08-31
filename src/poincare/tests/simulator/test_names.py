@@ -11,7 +11,7 @@ def assert_names(
     parameters: set[str],
 ):
     sim = Simulator(system)
-    df = sim.solve(times=range(1))
+    df = sim.solve(save_at=range(1))
 
     assert set(map(str, sim.compiled.variables)) == variables
     assert set(map(str, sim.compiled.parameters)) == parameters

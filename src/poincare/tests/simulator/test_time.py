@@ -32,7 +32,7 @@ def test_no_time_dependent_parameters():
         eq = x.derive() << p
 
     sim = Simulator(Model)
-    sim.solve(times=range(2))
+    sim.solve(save_at=range(2))
     assert set(sim.compiled.parameters) == {Model.p}
 
     sim.create_problem(values={Model.p: 1})
@@ -51,7 +51,7 @@ def test_time_dependent_parameters():
         eq = x.derive() << p
 
     sim = Simulator(Model)
-    sim.solve(times=range(2))
+    sim.solve(save_at=range(2))
     assert len(sim.compiled.parameters) == 0
 
     with raises(ValueError, match="recompile"):
@@ -72,7 +72,7 @@ def test_variable_dependent_parameters():
         eq2 = y.derive() << p
 
     sim = Simulator(Model)
-    sim.solve(times=range(2))
+    sim.solve(save_at=range(2))
     assert len(sim.compiled.parameters) == 0
 
     with raises(ValueError, match="recompile"):
@@ -88,7 +88,7 @@ def test_parameter_dependent_parameters():
         eq = x.derive() << p
 
     sim = Simulator(Model)
-    sim.solve(times=range(2))
+    sim.solve(save_at=range(2))
     # only p is part of the vector of parameters
     assert set(sim.compiled.parameters) == {Model.p}
     # but initial values can be modified through p0
@@ -131,10 +131,10 @@ def test_parameter_dependent_parameters2():
         eq = x.derive() << p
 
     sim = Simulator(Model)
-    sim.solve(times=range(2))
+    sim.solve(save_at=range(2))
     assert set(sim.compiled.parameters) == {Model.p}
 
     model = Model(p0=Model.t)
     sim = Simulator(model)
-    sim.solve(times=range(2))
+    sim.solve(save_at=range(2))
     assert len(sim.compiled.parameters) == 0

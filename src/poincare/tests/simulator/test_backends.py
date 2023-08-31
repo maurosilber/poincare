@@ -21,5 +21,5 @@ def test_solve(backend):
     t = np.linspace(0, 10, 100)
 
     sim = Simulator(Oscillator, backend=backend)
-    result = sim.solve(times=t)
+    result = sim.solve(save_at=t)
     assert np.allclose(result["x"], solution(t))

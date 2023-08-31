@@ -34,6 +34,6 @@ class DampedOscillator(System):
 
 if __name__ == "__main__":
     sim = Simulator(DampedOscillator)
-    result = sim.solve(times=np.linspace(0, 50, 1000))
+    result = sim.solve(save_at=np.linspace(0, 50, 1000))
     result.plot()
     plt.show()

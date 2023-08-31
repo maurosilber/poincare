@@ -236,12 +236,12 @@ def test_simulator_values():
     sim = Simulator(Model)
 
     with raises(DimensionalityError):
-        sim.solve(times=range(3), values={Model.x: 1 * u.m})
+        sim.solve(save_at=range(3), values={Model.x: 1 * u.m})
 
     with raises(DimensionalityError):
-        sim.solve(times=range(3), values={Model.T: 1})
+        sim.solve(save_at=range(3), values={Model.T: 1})
 
-    sim.solve(times=range(3), values={Model.T: 1 * u.ms})
+    sim.solve(save_at=range(3), values={Model.T: 1 * u.ms})
 
 
 def test_normalization():
@@ -254,8 +254,8 @@ def test_normalization():
 
     t = np.linspace(0, 1, 10)
     sim = Simulator(Model)
-    df = sim.solve(times=t)
-    df_cm = sim.solve(values={Model.y: 100 * u.cm}, times=t)
+    df = sim.solve(save_at=t)
+    df_cm = sim.solve(values={Model.y: 100 * u.cm}, save_at=t)
     assert np.allclose((df - df_cm).pint.dequantify().values, 0)
     assert df["y"].pint.units == u.m
     assert df_cm["y"].pint.units == u.cm
@@ -268,7 +268,7 @@ def test_unit_in_equation():
         eq = x.derive() << x / (1 * u.s)
 
     sim = Simulator(Model)
-    sim.solve(times=np.linspace(0, 1, 10))
+    sim.solve(save_at=np.linspace(0, 1, 10))
 
 
 def test_zero_initial_with_unit():
@@ -279,4 +279,4 @@ def test_zero_initial_with_unit():
 
     times = np.linspace(0, 1, 10)
     sim = Simulator(Model)
-    sim.solve(times=times)
+    sim.solve(save_at=times)

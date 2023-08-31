@@ -36,7 +36,7 @@ we do:
 ```python
 >>> from poincare import Simulator
 >>> sim = Simulator(Model)
->>> sim.solve(times=range(3))
+>>> sim.solve(save_at=range(3))
              x
 time
 0     1.000000
@@ -55,7 +55,7 @@ we have two options.
 1. Passing a dictionary to the \`solve\`\` method:
 
 ```python
->>> sim.solve(values={Model.x: 2}, times=range(3))
+>>> sim.solve(values={Model.x: 2}, save_at=range(3))
              x
 time
 0     2.000000
@@ -68,7 +68,7 @@ which reuses the previously compiled model in the `Simulator` instance.
 2. Instantiating the model with other values:
 
 ```python
->>> Simulator(Model(x=2)).solve(times=range(3))
+>>> Simulator(Model(x=2)).solve(save_at=range(3))
              x
 time
 0     2.000000
@@ -86,7 +86,7 @@ We can compute transformations of the output
 by passing a dictionary of expressions:
 
 ```python
->>> Simulator(Model, transform={"x": Model.x, "2x": 2 * Model.x}).solve(times=range(3))
+>>> Simulator(Model, transform={"x": Model.x, "2x": 2 * Model.x}).solve(save_at=range(3))
              x        2x
 time
 0     1.000000  2.000000
@@ -106,7 +106,7 @@ we have to assign an initial condition to the derivative of a variable:
 ...   v: Derivative = x.derive(initial=0)
 ...   eq = v.derive() << -x
 ...
->>> Simulator(Oscillator).solve(times=range(3))
+>>> Simulator(Oscillator).solve(save_at=range(3))
              x         v
 time
 0     1.000000  0.000000
@@ -133,7 +133,7 @@ Constants allow to define common initial conditions for Variables and Derivative
 ...     eq_x = x.derive() << -x
 ...     eq_y = y.derive() << -y
 ...
->>> Simulator(Model).solve(times=range(3))
+>>> Simulator(Model).solve(save_at=range(3))
              x         y
 time
 0     1.000000  2.000000
@@ -144,7 +144,7 @@ time
 Now, we can vary their initial conditions jointly:
 
 ```python
->>> Simulator(Model(c=2)).solve(times=range(3))
+>>> Simulator(Model(c=2)).solve(save_at=range(3))
              x         y
 time
 0     2.000000  4.000000
@@ -155,7 +155,7 @@ time
 But we can break that connection by passing `y` initial value directly:
 
 ```python
->>> Simulator(Model(c=2, y=2)).solve(times=range(3))
+>>> Simulator(Model(c=2, y=2)).solve(save_at=range(3))
              x         y
 time
 0     2.000000  2.000000
@@ -176,7 +176,7 @@ Variables, Constants and other Parameters:
 ...     x: Variable = initial(default=1)
 ...     eq = x.derive() << -p * x
 ...
->>> Simulator(Model).solve(times=range(3))
+>>> Simulator(Model).solve(save_at=range(3))
              x
 time
 0     1.000000
@@ -194,7 +194,7 @@ Symbolite functions are accessible from the `symbolite.scalar` module:
 ...     x: Variable = initial(default=1)
 ...     eq = x.derive() << scalar.sin(x)
 ...
->>> Simulator(Model).solve(times=range(3))
+>>> Simulator(Model).solve(save_at=range(3))
              x
 time
 0     1.000000
@@ -217,7 +217,7 @@ and [`pint-pandas`](https://github.com/hgrecco/pint-pandas).
 ...     w: Parameter = assign(default=1 * unit.Hz)
 ...     eq = v.derive() << -w**2 * x
 ...
->>> result = Simulator(Model).solve(times=range(3))
+>>> result = Simulator(Model).solve(save_at=range(3))
 ```
 
 The columns have units of m and m/s, respectively.
