@@ -27,7 +27,7 @@ class Solution:
     y: NDArray
 
 
-def _solve_scipy(
+def _solve_ivp_scipy(
     problem: Problem,
     method: type[integrate.OdeSolver],
     options: dict,
@@ -39,11 +39,15 @@ def _solve_scipy(
         problem.rhs,
         (problem.t[0], min(problem.t[1], save_at[-1])),
         problem.y,
-        method=method,
+        method=method,  # type: ignore
         t_eval=save_at,
         args=(problem.p, dy),
         **options,
     )
+    return _transform(problem, solution)
+
+
+def _transform(problem: Problem, solution: Solution) -> Solution:
     out = np.empty(
         (solution.t.size, len(problem.scale)),
         dtype=solution.y.dtype,
@@ -72,7 +76,7 @@ class _Base:
 
     def __call__(self, problem: Problem, *, save_at: np.ndarray):
         options = {k: getattr(self, k) for k in self.__dataclass_fields__}
-        return _solve_scipy(
+        return _solve_ivp_scipy(
             problem,
             self._solver_class,
             options=options,
@@ -88,6 +92,27 @@ class LSODA(_Base, solver=integrate.LSODA):
     """
 
     min_step: float = 0
+    use_odeint: bool | None = None
+
+    def __call__(self, problem: Problem, *, save_at: np.ndarray):
+        if (self.use_odeint is None and problem.t[0] != 0) or self.use_odeint is False:
+            return super().__call__(problem, save_at=save_at)
+
+        # Use odeint which is faster
+        dy = np.empty_like(problem.y)
+        y = integrate.odeint(
+            problem.rhs,
+            tfirst=True,
+            t=save_at,
+            y0=problem.y,
+            args=(problem.p, dy),
+            atol=self.atol,
+            rtol=self.rtol,
+            h0=self.first_step if self.first_step is not None else 0,
+            hmin=self.min_step,
+            hmax=self.max_step if self.max_step is not np.inf else 0,
+        )
+        return _transform(problem, Solution(save_at, y.T))
 
 
 @dataclass(frozen=True, kw_only=True)
