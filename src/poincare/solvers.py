@@ -64,6 +64,32 @@ def _transform(problem: Problem, solution: Solution) -> Solution:
     return Solution(solution.t, out)
 
 
+def _solve_numbalsoda(problem: Problem, solver, *, save_at: np.ndarray, atol, rtol):
+    from numba import cfunc
+    from numbalsoda import lsoda_sig
+
+    _rhs = problem.rhs
+    try:
+        rhs = _cache[_rhs]
+    except KeyError:
+
+        @cfunc(lsoda_sig)
+        def rhs(t, u, du, p):
+            _rhs(t, u, p, du)
+
+        _cache[_rhs] = rhs
+
+    y, success = solver(
+        rhs.address,
+        problem.y,
+        t_eval=save_at,
+        data=problem.p,
+        atol=atol,
+        rtol=rtol,
+    )
+    return _transform(problem, Solution(save_at, y.T))
+
+
 @dataclass(frozen=True, kw_only=True)
 class _Base:
     # Relative and absolute tolerences
@@ -78,11 +104,15 @@ class _Base:
         assert cls.__name__ in __all__, cls.__name__
 
     def __call__(self, problem: Problem, *, save_at: np.ndarray):
-        options = {k: getattr(self, k) for k in self.__dataclass_fields__}
         return _solve_ivp_scipy(
             problem,
             self._solver_class,
-            options=options,
+            options={
+                "rtol": self.rtol,
+                "atol": self.atol,
+                "first_step": self.first_step,
+                "max_step": self.max_step,
+            },
             save_at=save_at,
         )
 
@@ -104,7 +134,15 @@ class LSODA(_Base, solver=integrate.LSODA):
             case "odeint":
                 return self._odeint(problem, save_at=save_at)
             case "numbalsoda":
-                return self._numbalsoda(problem, save_at=save_at)
+                from numbalsoda import lsoda
+
+                return _solve_numbalsoda(
+                    problem,
+                    lsoda,
+                    save_at=save_at,
+                    rtol=self.rtol,
+                    atol=self.atol,
+                )
             case None:
                 if problem.t[0] == 0:
                     return self._odeint(problem, save_at=save_at)
@@ -143,31 +181,6 @@ class LSODA(_Base, solver=integrate.LSODA):
         )
         return _transform(problem, Solution(save_at, y.T))
 
-    def _numbalsoda(self, problem: Problem, *, save_at: np.ndarray):
-        from numba import cfunc
-        from numbalsoda import lsoda, lsoda_sig
-
-        _rhs = problem.rhs
-        try:
-            rhs = _cache[_rhs]
-        except KeyError:
-
-            @cfunc(lsoda_sig)
-            def rhs(t, u, du, p):
-                _rhs(t, u, p, du)
-
-            _cache[_rhs] = rhs
-
-        y, success = lsoda(
-            rhs.address,
-            problem.y,
-            t_eval=save_at,
-            data=problem.p,
-            rtol=self.rtol,
-            atol=self.atol,
-        )
-        return _transform(problem, Solution(save_at, y.T))
-
 
 @dataclass(frozen=True, kw_only=True)
 class RK23(_Base, solver=integrate.RK23):
@@ -191,6 +204,25 @@ class DOP853(_Base, solver=integrate.DOP853):
 
     This is a wrapper to SciPy's DOP853.
     """
+
+    implementation: Literal["scipy", "numbalsoda"] = "scipy"
+
+    def __call__(self, problem: Problem, *, save_at: np.ndarray):
+        match self.implementation:
+            case "scipy":
+                return super().__call__(problem, save_at=save_at)
+            case "numbalsoda":
+                from numbalsoda import dop853
+
+                return _solve_numbalsoda(
+                    problem,
+                    dop853,
+                    save_at=save_at,
+                    rtol=self.rtol,
+                    atol=self.atol,
+                )
+            case _:
+                assert_never(self.implementation)
 
 
 @dataclass(frozen=True, kw_only=True)
