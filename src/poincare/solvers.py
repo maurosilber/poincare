@@ -52,6 +52,8 @@ def _solve_ivp_scipy(
         args=(problem.p, dy),
         **options,
     )
+    if solution.status == -1:
+        raise RuntimeError(solution.message)
     return _transform(problem, solution)
 
 
@@ -95,6 +97,8 @@ def _solve_numbalsoda(problem: Problem, solver, *, save_at: np.ndarray, atol, rt
         atol=atol,
         rtol=rtol,
     )
+    if not success:
+        raise RuntimeError("solver did not succeed.")
     return _transform(problem, Solution(save_at, y.T))
 
 
