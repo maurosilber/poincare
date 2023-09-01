@@ -1,8 +1,11 @@
 import numpy as np
 from pytest import mark
 
-from ... import Parameter, System, Variable
+from ... import Parameter, System, Variable, solvers
 from ...simulator import Backend, Simulator
+
+SOLVE_TOLERANCE = 1e-6
+TEST_TOLERANCES = 1e-3
 
 
 class Oscillator(System):
@@ -17,9 +20,34 @@ def solution(t, x=1):
 
 
 @mark.parametrize("backend", Backend)
-def test_solve(backend):
+def test_backends(backend):
     t = np.linspace(0, 10, 100)
 
     sim = Simulator(Oscillator, backend=backend)
-    result = sim.solve(save_at=t)
-    assert np.allclose(result["x"], solution(t))
+    result = sim.solve(
+        save_at=t,
+        solver=solvers.LSODA(atol=SOLVE_TOLERANCE, rtol=SOLVE_TOLERANCE),
+    )
+    assert np.allclose(
+        result["x"],
+        solution(t),
+        atol=TEST_TOLERANCES,
+        rtol=TEST_TOLERANCES,
+    )
+
+
+@mark.parametrize("solver", [getattr(solvers, k) for k in solvers.__all__])
+def test_solvers(solver):
+    t = np.linspace(0, 10, 100)
+
+    sim = Simulator(Oscillator)
+    result = sim.solve(
+        save_at=t,
+        solver=solver(atol=SOLVE_TOLERANCE, rtol=SOLVE_TOLERANCE),
+    )
+    assert np.allclose(
+        result["x"],
+        solution(t),
+        atol=TEST_TOLERANCES,
+        rtol=TEST_TOLERANCES,
+    )

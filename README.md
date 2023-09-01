@@ -40,8 +40,8 @@ we do:
              x
 time
 0     1.000000
-1     0.367879
-2     0.135335
+1     0.368139
+2     0.135501
 ```
 
 The output is a `pandas.DataFrame`,
@@ -59,8 +59,8 @@ we have two options.
              x
 time
 0     2.000000
-1     0.735759
-2     0.270671
+1     0.736278
+2     0.271002
 ```
 
 which reuses the previously compiled model in the `Simulator` instance.
@@ -72,8 +72,8 @@ which reuses the previously compiled model in the `Simulator` instance.
              x
 time
 0     2.000000
-1     0.735759
-2     0.270671
+1     0.736278
+2     0.271002
 ```
 
 This second option allows to compose systems
@@ -90,8 +90,8 @@ by passing a dictionary of expressions:
              x        2x
 time
 0     1.000000  2.000000
-1     0.367879  0.735759
-2     0.135335  0.270671
+1     0.368139  0.736278
+2     0.135501  0.271002
 ```
 
 ### Higher-order systems
@@ -110,8 +110,8 @@ we have to assign an initial condition to the derivative of a variable:
              x         v
 time
 0     1.000000  0.000000
-1     0.540302 -0.841471
-2    -0.416147 -0.909297
+1     0.540366 -0.841561
+2    -0.416308 -0.909791
 ```
 
 ### Constants, Parameters, and functions
@@ -137,8 +137,8 @@ Constants allow to define common initial conditions for Variables and Derivative
              x         y
 time
 0     1.000000  2.000000
-1     0.367879  0.735759
-2     0.135335  0.270671
+1     0.368139  0.736278
+2     0.135501  0.271002
 ```
 
 Now, we can vary their initial conditions jointly:
@@ -148,8 +148,8 @@ Now, we can vary their initial conditions jointly:
              x         y
 time
 0     2.000000  4.000000
-1     0.735759  1.471518
-2     0.270671  0.541341
+1     0.736278  1.472556
+2     0.271001  0.542003
 ```
 
 But we can break that connection by passing `y` initial value directly:
@@ -159,8 +159,8 @@ But we can break that connection by passing `y` initial value directly:
              x         y
 time
 0     2.000000  2.000000
-1     0.735759  0.735759
-2     0.270671  0.270671
+1     0.736278  0.736278
+2     0.271002  0.271002
 ```
 
 #### Parameters
@@ -180,8 +180,8 @@ Variables, Constants and other Parameters:
              x
 time
 0     1.000000
-1     0.367879
-2     0.135335
+1     0.368139
+2     0.135501
 ```
 
 #### Functions
@@ -198,8 +198,8 @@ Symbolite functions are accessible from the `symbolite.scalar` module:
              x
 time
 0     1.000000
-1     1.956295
-2     2.655911
+1     1.951464
+2     2.654572
 ```
 
 ### Units
@@ -238,8 +238,8 @@ We can remove the units and set them as string metadata with:
 unit     meter meter / second
 time
 0     1.000000       0.000000
-1     0.540302      -0.841471
-2    -0.416147      -0.909297
+1     0.540366      -0.841561
+2    -0.416308      -0.909791
 ```
 
 which allows to plot the DataFrame with `.plot()`.
