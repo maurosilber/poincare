@@ -158,7 +158,7 @@ class Simulator:
         *,
         t_span: tuple[float, float] = (0, np.inf),
         save_at: Sequence[float],
-        solver=solvers.LSODA(),
+        solver: solvers.Solver = solvers.LSODA(),
     ):
         problem = self.create_problem(values, t_span=t_span)
         solution = solver(problem, save_at=np.asarray(save_at))

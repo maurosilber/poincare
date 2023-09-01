@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import weakref
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Sequence, assert_never
+from typing import TYPE_CHECKING, Literal, Protocol, Sequence, assert_never
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,6 +22,11 @@ __all__ = [
 ]
 
 _cache = weakref.WeakKeyDictionary()
+
+
+class Solver(Protocol):
+    def __call__(self, problem: Problem, *, save_at) -> Solution:
+        pass
 
 
 @dataclass
