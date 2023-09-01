@@ -65,19 +65,22 @@ def _transform(problem: Problem, solution: Solution) -> Solution:
 
 
 def _solve_numbalsoda(problem: Problem, solver, *, save_at: np.ndarray, atol, rtol):
-    from numba import cfunc
+    from numba import TypingError, cfunc
     from numbalsoda import lsoda_sig
 
     _rhs = problem.rhs
     try:
         rhs = _cache[_rhs]
     except KeyError:
+        try:
 
-        @cfunc(lsoda_sig)
-        def rhs(t, u, du, p):
-            _rhs(t, u, p, du)
+            @cfunc(lsoda_sig)
+            def rhs(t, u, du, p):
+                _rhs(t, u, p, du)
 
-        _cache[_rhs] = rhs
+            _cache[_rhs] = rhs
+        except TypingError:
+            raise TypingError("are you using Backend.NUMBA?") from None
 
     y, success = solver(
         rhs.address,
