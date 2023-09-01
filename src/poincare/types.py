@@ -232,6 +232,9 @@ class Derivative(Node, Symbol):
         initial: Initial | None = None,
         order: int,
     ):
+        if self.name != "":
+            # Existing derivative
+            return
         self.variable = variable
         self.order = order
         self.initial = initial

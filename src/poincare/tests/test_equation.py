@@ -23,6 +23,15 @@ def test_first_order_equation():
         assert equations[Derivative(x, order=x.equation_order)] == [x]
 
 
+def test_do_not_reassign_initial():
+    class Model(System):
+        x: Variable = initial(default=0)
+        vx = x.derive(initial=0)
+        x.derive()
+
+    assert Model.vx.initial == 0
+
+
 def test_second_order_equation():
     class Model(System):
         x: Variable = initial(default=0)
