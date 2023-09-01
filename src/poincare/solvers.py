@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import weakref
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal, Sequence, assert_never
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +20,8 @@ __all__ = [
     "Radau",
     "BDF",
 ]
+
+_cache = weakref.WeakKeyDictionary()
 
 
 @dataclass
@@ -92,13 +95,39 @@ class LSODA(_Base, solver=integrate.LSODA):
     """
 
     min_step: float = 0
-    use_odeint: bool | None = None
+    implementation: Literal["LSODA", "odeint", "numbalsoda", None] = None
 
     def __call__(self, problem: Problem, *, save_at: np.ndarray):
-        if (self.use_odeint is None and problem.t[0] != 0) or self.use_odeint is False:
-            return super().__call__(problem, save_at=save_at)
+        match self.implementation:
+            case "LSODA":
+                return self._LSODA(problem, save_at=save_at)
+            case "odeint":
+                return self._odeint(problem, save_at=save_at)
+            case "numbalsoda":
+                return self._numbalsoda(problem, save_at=save_at)
+            case None:
+                if problem.t[0] == 0:
+                    return self._odeint(problem, save_at=save_at)
+                else:
+                    return self._LSODA(problem, save_at=save_at)
+            case _:
+                assert_never(self.implementation)
 
-        # Use odeint which is faster
+    def _LSODA(self, problem: Problem, *, save_at: np.ndarray):
+        return _solve_ivp_scipy(
+            problem,
+            self._solver_class,
+            options=dict(
+                rtol=self.rtol,
+                atol=self.atol,
+                first_step=self.first_step,
+                max_step=self.max_step,
+                min_step=self.min_step,
+            ),
+            save_at=save_at,
+        )
+
+    def _odeint(self, problem: Problem, *, save_at: np.ndarray):
         dy = np.empty_like(problem.y)
         y = integrate.odeint(
             problem.rhs,
@@ -111,6 +140,31 @@ class LSODA(_Base, solver=integrate.LSODA):
             h0=self.first_step if self.first_step is not None else 0,
             hmin=self.min_step,
             hmax=self.max_step if self.max_step is not np.inf else 0,
+        )
+        return _transform(problem, Solution(save_at, y.T))
+
+    def _numbalsoda(self, problem: Problem, *, save_at: np.ndarray):
+        from numba import cfunc
+        from numbalsoda import lsoda, lsoda_sig
+
+        _rhs = problem.rhs
+        try:
+            rhs = _cache[_rhs]
+        except KeyError:
+
+            @cfunc(lsoda_sig)
+            def rhs(t, u, du, p):
+                _rhs(t, u, p, du)
+
+            _cache[_rhs] = rhs
+
+        y, success = lsoda(
+            rhs.address,
+            problem.y,
+            t_eval=save_at,
+            data=problem.p,
+            rtol=self.rtol,
+            atol=self.atol,
         )
         return _transform(problem, Solution(save_at, y.T))
 
