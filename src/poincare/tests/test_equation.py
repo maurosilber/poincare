@@ -32,6 +32,24 @@ def test_do_not_reassign_initial():
     assert Model.vx.initial == 0
 
 
+def test_error_assigning_to_derivative_with_initial():
+    with raises(ValueError):
+
+        class Model(System):
+            x: Variable = initial(default=0)
+            vx = x.derive(initial=0)
+            prop = x.derive() << x
+
+
+def test_error_assigning_to_derivative_with_annotation():
+    with raises(ValueError):
+
+        class Model(System):
+            x: Variable = initial(default=0)
+            vx: Derivative = x.derive()
+            prop = x.derive() << x
+
+
 def test_second_order_equation():
     class Model(System):
         x: Variable = initial(default=0)
