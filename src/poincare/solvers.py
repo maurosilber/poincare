@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import weakref
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Protocol, Sequence, assert_never
+from typing import TYPE_CHECKING, Literal, Protocol, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import integrate
+from typing_extensions import assert_never
 
 if TYPE_CHECKING:
     from .simulator import Problem
