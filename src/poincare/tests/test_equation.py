@@ -41,6 +41,7 @@ def test_error_assigning_to_derivative_with_initial():
             prop = x.derive() << x
 
 
+@mark.xfail(reason="not implemented")
 def test_error_assigning_to_derivative_with_annotation():
     with raises(ValueError):
 

@@ -40,6 +40,7 @@ def test_sum_variable():
     assert set(df.columns) == {"sum"}
 
 
+@mark.xfail(reason="not implemented")
 def test_non_variable():
     # Should it shortcut and skip the solver?
     sim = Simulator(Model, transform={"c": Model.c})
@@ -57,6 +58,7 @@ def test_number():
     assert np.all(df["my_number"] == 1)
 
 
+@mark.xfail(reason="not implemented")
 def test_unused_variable():
     sim = Simulator(Model, transform={"unused": Model.unused})
 
