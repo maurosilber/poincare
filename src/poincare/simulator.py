@@ -180,7 +180,7 @@ class Simulator:
         | Sequence[Components] = {},
         *,
         t_span: tuple[float, float] = (0, np.inf),
-        times: ArrayLike,
+        save_at: ArrayLike,
         func: Callable[[pd.DataFrame], Any] = lambda df: df.plot(),
     ):
         try:
@@ -234,7 +234,7 @@ class Simulator:
             result = self.solve(
                 {name_map[k]: v * unit_map.get(k, 1) for k, v in kwargs.items()},
                 t_span=t_span,
-                save_at=times,
+                save_at=save_at,
             )
             func(result)
 

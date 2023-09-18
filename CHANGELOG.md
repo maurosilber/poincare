@@ -1,5 +1,7 @@
 # Change Log
 
+- Rename `times` to `save_at` in `Simulator.solve`.
+
 ## 0.2.0
 
 - Allow different ODE solvers and implement wrappers for SciPy and numbalsoda.
