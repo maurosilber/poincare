@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, Sequence, TypeVar, overload
+from typing import Any, ClassVar, Iterator, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
 import pint
@@ -12,7 +12,7 @@ from typing_extensions import Self, dataclass_transform
 
 from . import units
 from ._node import Node, NodeMapper
-from ._utils import class_and_instance_method
+from .printing.table import Table
 
 T = TypeVar("T")
 
@@ -479,10 +479,63 @@ class EagerNamer(type):
         self._abstract = abstract
 
     def __str__(self):
-        return ""
+        return _as_table(self, max_width=None).__str__()
 
     def __repr__(self):
-        return f"<{self.__name__}>"
+        return _as_table(self, max_width=80 - 17).__repr__()
+
+    def _repr_html_(self):
+        return _as_table(self, max_width=80 - 17)._repr_html_()
+
+    @property
+    def variables(self):
+        return Table.from_attributes(
+            self._yield(Variable),
+            attributes=["name", "initial"],
+        )
+
+    @property
+    def parameters(self):
+        return Table.from_attributes(
+            self._yield(Parameter | Constant),
+            attributes=["name", "default"],
+        )
+
+
+def _as_table(self: type[System], *, max_width: int | None) -> Table:
+    types = dict(
+        variables=list(self._yield(Variable)),
+        parameters=list(self._yield(Parameter | Constant)),
+        equations=list(self._yield(Equation | EquationGroup)),
+    )
+
+    return Table(
+        table=[
+            [
+                name,
+                str(len(values)),
+                _sequence_to_str(values, sep=", ", max_size=max_width),
+            ]
+            for name, values in types.items()
+        ],
+        headers=["type", "total", "names"],
+        title=self.__name__,
+    )
+
+
+def _sequence_to_str(seq: Iterator, /, *, sep: str, max_size: int | None) -> str:
+    if max_size is None:
+        return sep.join(map(str, seq))
+
+    count = 0
+    tokens = []
+    for token in map(str, seq):
+        count += len(token) + len(sep)
+        if count >= max_size:
+            tokens.append("...")
+            break
+        tokens.append(token)
+    return sep.join(tokens)
 
 
 @dataclass_transform(
@@ -573,17 +626,3 @@ class System(Node, metaclass=EagerNamer):
         name = self.__class__.__name__
         kwargs = ",".join(f"{k}={v}" for k, v in self._kwargs.items())
         return f"{name}({kwargs})"
-
-    @class_and_instance_method
-    def _repr_latex_(self):
-        from .printing.latex import ToLatex, as_aligned_lines
-
-        to_latex = ToLatex(self)
-        align_char = " &= "
-        return "\n\n".join(
-            [
-                as_aligned_lines(to_latex.yield_variables(), align_char=align_char),
-                as_aligned_lines(to_latex.yield_parameters(), align_char=align_char),
-                as_aligned_lines(to_latex.yield_equations(), align_char=align_char),
-            ]
-        )

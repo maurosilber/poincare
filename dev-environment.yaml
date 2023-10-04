@@ -12,6 +12,7 @@ dependencies:
   - matplotlib
   - pint
   - pint-pandas
+  - tabulate
   - pip
   - pip:
     - symbolite

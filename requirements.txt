@@ -5,3 +5,4 @@ scipy
 pandas
 pint
 pint-pandas
+tabulate

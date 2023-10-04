@@ -2,6 +2,7 @@
 
 - Rename `times` to `save_at` in `Simulator.interact`.
 - Fix typing in `Simulator.solve` to accept `ArrayLike`.
+- Improve `__repr__` for `System` type to show the number of components.
 
 ## 0.2.0
 
