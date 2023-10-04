@@ -1,6 +1,7 @@
 # Change Log
 
 - Rename `times` to `save_at` in `Simulator.interact`.
+- Fix typing in `Simulator.solve` to accept `ArrayLike`.
 
 ## 0.2.0
 
