@@ -71,7 +71,7 @@ class Simulator:
         system: System | type[System],
         /,
         *,
-        backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY,
+        backend: Backend = "numpy",
         transform: Sequence[Symbol] | Mapping[Hashable, Symbol] | None = None,
     ):
         self.model = system

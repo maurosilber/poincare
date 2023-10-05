@@ -3,6 +3,7 @@
 - Rename `times` to `save_at` in `Simulator.interact`.
 - Fix typing in `Simulator.solve` to accept `ArrayLike`.
 - Improve `__repr__` for `System` type to show the number of components.
+- Change `Backend` from `Enum` to `Literal`. No need to import the enum from `.compile`.
 
 ## 0.2.0
 

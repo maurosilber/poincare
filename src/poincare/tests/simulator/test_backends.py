@@ -19,7 +19,7 @@ def solution(t, x=1):
     return x * np.cos(t)
 
 
-@mark.parametrize("backend", Backend)
+@mark.parametrize("backend", Backend.__args__)
 def test_backends(backend):
     t = np.linspace(0, 10, 100)
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import enum
 from collections import defaultdict
 from collections.abc import MutableSequence, Sequence
 from dataclasses import dataclass
@@ -10,6 +9,7 @@ from typing import (
     Callable,
     Generic,
     Iterator,
+    Literal,
     Mapping,
     Protocol,
     TypeAlias,
@@ -70,33 +70,25 @@ def identity(x):
     return x
 
 
-class Backend(enum.Enum):
-    FIRST_ORDER_VECTORIZED_STD = enum.auto()
-    FIRST_ORDER_VECTORIZED_NUMPY = enum.auto()
-    FIRST_ORDER_VECTORIZED_NUMPY_NUMBA = enum.auto()
-    FIRST_ORDER_VECTORIZED_JAX = enum.auto()
+Backend = Literal["numpy", "numba", "jax"]
 
-    @staticmethod
-    def get_libsl(backend: Backend) -> ModuleType:
-        match backend:
-            case Backend.FIRST_ORDER_VECTORIZED_STD:
-                from symbolite.impl import libstd
 
-                return libstd
-            case Backend.FIRST_ORDER_VECTORIZED_NUMPY:
-                from symbolite.impl import libnumpy
+def get_libsl(backend: Backend) -> ModuleType:
+    match backend:
+        case "numpy":
+            from symbolite.impl import libnumpy
 
-                return libnumpy
-            case Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA:
-                from symbolite.impl import libnumpy
+            return libnumpy
+        case "numba":
+            from symbolite.impl import libnumpy
 
-                return libnumpy
-            case Backend.FIRST_ORDER_VECTORIZED_JAX:
-                from symbolite.impl import libjax
+            return libnumpy
+        case "jax":
+            from symbolite.impl import libjax
 
-                return libjax
-            case _:
-                assert_never(backend, message="Unknown backend {}")
+            return libjax
+        case _:
+            assert_never(backend, message="Unknown backend {}")
 
 
 def eqsum(eqs: list[ExprRHS]) -> scalar.NumberT | Symbol:
@@ -411,18 +403,18 @@ def build_first_order_functions(
 
 def compile_diffeq(
     system: System | type[System],
-    backend: Backend = Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA,
+    backend: Backend,
 ) -> Compiled[Variable | Derivative, RHS]:
-    libsl = Backend.get_libsl(backend)
+    libsl = get_libsl(backend)
 
     optimizer_fun = identity
     assignment_fun = assignment
     match backend:
-        case Backend.FIRST_ORDER_VECTORIZED_NUMPY_NUMBA:
+        case "numba":
             import numba
 
             optimizer_fun = numba.njit
-        case Backend.FIRST_ORDER_VECTORIZED_JAX:
+        case "jax":
             import jax
 
             optimizer_fun = jax.jit
