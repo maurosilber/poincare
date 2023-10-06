@@ -1,4 +1,8 @@
-# Change Log
+## 0.3.1
+
+- Add `__signature__` to `System`, for environments that do not support `dataclass_transform`.
+
+## 0.3.0
 
 - Rename `times` to `save_at` in `Simulator.interact`.
 - Fix typing in `Simulator.solve` to accept `ArrayLike`.

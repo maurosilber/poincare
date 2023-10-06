@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from typing import Any, ClassVar, Iterator, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
@@ -558,6 +559,7 @@ class System(Node, metaclass=EagerNamer):
             del cls._annotations[k]
 
         # Check mismatched types and compute required
+        parameters = []
         cls._required = set()
         mismatched_types: list[tuple[str, type, type]] = []
         for k, annotation in cls._annotations.items():
@@ -565,10 +567,25 @@ class System(Node, metaclass=EagerNamer):
             if not isinstance(v, annotation):
                 mismatched_types.append((k, annotation, type(v)))
 
-            if isinstance(v, Variable) and v.initial is None:
+            if isinstance(v, Variable):
+                default = v.initial
+            elif isinstance(v, Parameter | Constant):
+                default = v.default
+            else:
+                default = v
+
+            if default is None:
                 cls._required.add(k)
-            elif isinstance(v, Parameter | Constant) and v.default is None:
-                cls._required.add(k)
+                default = inspect.Parameter.empty
+
+            parameters.append(
+                inspect.Parameter(
+                    name=k,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default=default,
+                    annotation=annotation,
+                )
+            )
 
         if len(mismatched_types) > 0:
             raise TypeError(
@@ -576,6 +593,8 @@ class System(Node, metaclass=EagerNamer):
                     [f"{k} expected {ann} got {t}" for k, ann, t in mismatched_types]
                 )
             )
+
+        cls.__signature__ = inspect.Signature(parameters)
 
     def __getattribute__(self, name: str) -> Any:
         value = super().__getattribute__(name)
