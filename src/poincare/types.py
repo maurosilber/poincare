@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Iterator, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
 
+import pandas as pd
 import pint
 from symbolite import Scalar, Symbol
 from symbolite import abstract as libabstract
@@ -489,17 +490,27 @@ class EagerNamer(type):
         return _as_table(self, max_width=80 - 17)._repr_html_()
 
     @property
-    def variables(self):
-        return Table.from_attributes(
-            self._yield(Variable),
-            attributes=["name", "initial"],
+    def variables(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {
+                    "name": str(x),
+                    "value": x.initial,
+                }
+                for x in self._yield(Variable)
+            ]
         )
 
     @property
     def parameters(self):
-        return Table.from_attributes(
-            self._yield(Parameter | Constant),
-            attributes=["name", "default"],
+        return pd.DataFrame(
+            [
+                {
+                    "name": str(x),
+                    "value": x.default,
+                }
+                for x in self._yield(Parameter | Constant)
+            ]
         )
 
 
