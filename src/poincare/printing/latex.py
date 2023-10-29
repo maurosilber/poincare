@@ -25,8 +25,10 @@ class ToLatex:
             yield name, str(x.initial)
             for order in range(1, x.equation_order):
                 d = x.derivatives[order]
-                yield self.normalize_name(d), str(x.initial), latex_derivative(
-                    name, order
+                yield (
+                    self.normalize_name(d),
+                    str(x.initial),
+                    latex_derivative(name, order),
                 )
 
     def yield_parameters(self) -> Iterator[tuple[str, str]]:

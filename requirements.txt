@@ -1,8 +1,8 @@
-symbolite >= 0.4
-typing_extensions
 numpy
-scipy
 pandas
 pint
 pint-pandas
+scipy
+symbolite >= 0.4
 tabulate
+typing_extensions

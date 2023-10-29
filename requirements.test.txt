@@ -1,4 +1,4 @@
-pytest
+jax[cpu]
 matplotlib
 numba
-jax[cpu]
+pytest
