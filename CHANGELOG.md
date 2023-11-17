@@ -1,3 +1,7 @@
+## 0.4.0
+
+- `System.variables` and `System.paramters` return a `pandas.DataFrame` instead of a `Table` object.
+
 ## 0.3.1
 
 - Add `__signature__` to `System`, for environments that do not support `dataclass_transform`.
