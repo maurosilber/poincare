@@ -1,3 +1,4 @@
+cloudpickle
 jax[cpu]
 matplotlib
 numba

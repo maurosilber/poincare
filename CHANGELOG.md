@@ -1,6 +1,8 @@
 ## unreleased
 
 - Update to `symbolite >= 0.6` to support serialization (pickle) of `System`.
+- Add `__getnewargs__` to `Variable` and `Derivative` to support serialization
+  of "locally-defined" `System`s with `cloudpickle`.
 
 ## 0.4.0
 

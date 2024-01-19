@@ -135,6 +135,9 @@ class Variable(Node, Scalar):
         self.derivatives = {}
         units.check_units(self, initial)
 
+    def __getnewargs__(self):
+        return (self.initial, self.derivatives, self.equation_order)
+
     def eval(self, libsl=None):
         if libsl is libabstract:
             return self
@@ -245,6 +248,14 @@ class Derivative(Node, Symbol):
     def __set_name__(self, cls: Node, name: str):
         super().__set_name__(cls, name)
         self.variable.derivatives[self.order] = self
+
+    def __getnewargs_ex__(self):
+        args = (self.variable,)
+        kwargs = {
+            "initial": self.initial,
+            "order": self.order,
+        }
+        return args, kwargs
 
     def eval(self, libsl=None):
         if libsl is libabstract:
