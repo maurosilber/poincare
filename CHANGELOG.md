@@ -1,3 +1,7 @@
+## unreleased
+
+- Update to `symbolite >= 0.6` to support serialization (pickle) of `System`.
+
 ## 0.4.0
 
 - `System.variables` and `System.paramters` return a `pandas.DataFrame` instead of a `Table` object.

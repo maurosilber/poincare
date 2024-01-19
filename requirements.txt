@@ -3,6 +3,6 @@ pandas
 pint
 pint-pandas
 scipy
-symbolite >= 0.4
+symbolite >= 0.6.0
 tabulate
 typing_extensions
