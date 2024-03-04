@@ -501,28 +501,12 @@ class EagerNamer(type):
         return _as_table(self, max_width=80 - 17)._repr_html_()
 
     @property
-    def variables(self) -> pd.DataFrame:
-        return pd.DataFrame(
-            [
-                {
-                    "name": str(x),
-                    "value": x.initial,
-                }
-                for x in self._yield(Variable)
-            ]
-        )
+    def variables(self):
+        return pd.Series({str(x): x.initial for x in self._yield(Variable)})
 
     @property
     def parameters(self):
-        return pd.DataFrame(
-            [
-                {
-                    "name": str(x),
-                    "value": x.default,
-                }
-                for x in self._yield(Parameter | Constant)
-            ]
-        )
+        return pd.Series({str(x): x.default for x in self._yield(Parameter | Constant)})
 
 
 def _as_table(self: type[System], *, max_width: int | None) -> Table:
