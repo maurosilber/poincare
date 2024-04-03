@@ -114,6 +114,26 @@ time
 2    -0.416308 -0.909791
 ```
 
+### Non-autonomous systems
+
+To use the independent variable,
+we create an instance of `Independent`:
+
+```python
+>>> from poincare import Independent
+>>> class NonAutonomous(System):
+...   time: Independent = Independent()
+...   x: Variable = initial(default=0)
+...   eq = x.derive() << 2 * time
+...
+>>> Simulator(NonAutonomous).solve(save_at=range(3))
+             x
+time
+0     0.000000
+1     1.000001
+2     4.000001
+```
+
 ### Constants, Parameters, and functions
 
 Besides variables,
