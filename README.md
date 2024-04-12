@@ -50,9 +50,7 @@ which can be plotted with `.plot()`.
 ### Changing initial conditions
 
 To change the initial condition,
-we have two options.
-
-1. Passing a dictionary to the \`solve\`\` method:
+we can pass a dictionary to the \`solve\`\` method:
 
 ```python
 >>> sim.solve(values={Model.x: 2}, save_at=range(3))
@@ -62,23 +60,6 @@ time
 1     0.736278
 2     0.271002
 ```
-
-which reuses the previously compiled model in the `Simulator` instance.
-
-2. Instantiating the model with other values:
-
-```python
->>> Simulator(Model(x=2)).solve(save_at=range(3))
-             x
-time
-0     2.000000
-1     0.736278
-2     0.271002
-```
-
-This second option allows to compose systems
-into bigger systems.
-See the example in [examples/oscillators.py](https://github.com/maurosilber/poincare/blob/main/examples/oscillators.py).
 
 ### Transforming the output
 
@@ -122,7 +103,7 @@ we create an instance of `Independent`:
 ```python
 >>> from poincare import Independent
 >>> class NonAutonomous(System):
-...   time: Independent = Independent()
+...   time = Independent()
 ...   x: Variable = initial(default=0)
 ...   eq = x.derive() << 2 * time
 ...
@@ -164,7 +145,7 @@ time
 Now, we can vary their initial conditions jointly:
 
 ```python
->>> Simulator(Model(c=2)).solve(save_at=range(3))
+>>> Simulator(Model).solve(values={Model.c: 2}, save_at=range(3))
              x         y
 time
 0     2.000000  4.000000
@@ -175,7 +156,7 @@ time
 But we can break that connection by passing `y` initial value directly:
 
 ```python
->>> Simulator(Model(c=2, y=2)).solve(save_at=range(3))
+>>> Simulator(Model).solve(values={Model.c: 2, Model.y: 2}, save_at=range(3))
              x         y
 time
 0     2.000000  2.000000
