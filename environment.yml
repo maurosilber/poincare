@@ -13,6 +13,10 @@ dependencies:
   - pint
   - pint-pandas
   - tabulate
+  - symbolite
+  - cloudpickle
+  - numba
+  - jax
   - pip
   - pip:
-    - symbolite
+    - -e .
