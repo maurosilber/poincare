@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from poincare import Derivative, Parameter, Simulator, System, Variable, assign, initial
 from symbolite import scalar
+
+from poincare import Derivative, Parameter, Simulator, System, Variable, assign, initial
 
 
 class Pendulum(System):

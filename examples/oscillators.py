@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+
 from poincare import Derivative, Parameter, Simulator, System, Variable, assign, initial
 
 

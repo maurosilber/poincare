@@ -1,5 +1,9 @@
 import numpy as np
 from pint import DimensionalityError, get_application_registry
+from pytest import mark, raises
+from symbolite import scalar
+from symbolite.impl import libstd
+
 from poincare import (
     Constant,
     Derivative,
@@ -11,9 +15,6 @@ from poincare import (
     assign,
     initial,
 )
-from pytest import mark, raises
-from symbolite import scalar
-from symbolite.impl import libstd
 
 u = get_application_registry()
 

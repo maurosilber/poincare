@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from symbolite import scalar
+
 from poincare import (
     Derivative,
     Independent,
@@ -10,7 +12,6 @@ from poincare import (
     assign,
     initial,
 )
-from symbolite import scalar
 
 
 class Oscillator(System):
