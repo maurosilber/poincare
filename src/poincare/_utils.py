@@ -26,12 +26,10 @@ class class_and_instance_method(Generic[S, P, R]):
         self.func = func
 
     @overload
-    def __get__(self, obj: None, cls: type[S]) -> Callable[P, R]:
-        ...
+    def __get__(self, obj: None, cls: type[S]) -> Callable[P, R]: ...
 
     @overload
-    def __get__(self, obj: S, cls: type[S]) -> Callable[P, R]:
-        ...
+    def __get__(self, obj: S, cls: type[S]) -> Callable[P, R]: ...
 
     def __get__(self, obj, cls):  # type: ignore
         if obj is None:

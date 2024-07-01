@@ -385,8 +385,7 @@ def assign(
     default: Initial | Symbol | None = None,
     constant: Literal[False] = False,
     init: bool = True,
-) -> Parameter:
-    ...
+) -> Parameter: ...
 
 
 @overload
@@ -395,8 +394,7 @@ def assign(
     default: Initial | None = None,
     constant: Literal[True],
     init: bool = True,
-) -> Constant:
-    ...
+) -> Constant: ...
 
 
 def assign(*, default=None, constant: bool = False, init: bool = True):

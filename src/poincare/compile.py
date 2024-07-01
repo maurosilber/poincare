@@ -46,13 +46,11 @@ MutableArray: TypeAlias = MutableSequence[float]
 
 
 class RHS(Protocol):
-    def __call__(self, t: float, y: Array, p: Array, dy: MutableArray) -> Array:
-        ...
+    def __call__(self, t: float, y: Array, p: Array, dy: MutableArray) -> Array: ...
 
 
 class Transform(Protocol):
-    def __call__(self, t: float, y: Array, p: Array, out: MutableArray) -> Array:
-        ...
+    def __call__(self, t: float, y: Array, p: Array, out: MutableArray) -> Array: ...
 
 
 @dataclass(frozen=True, kw_only=True)
