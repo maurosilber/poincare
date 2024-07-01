@@ -26,8 +26,7 @@ _cache = weakref.WeakKeyDictionary()
 
 
 class Solver(Protocol):
-    def __call__(self, problem: Problem, *, save_at) -> Solution:
-        ...
+    def __call__(self, problem: Problem, *, save_at) -> Solution: ...
 
 
 @dataclass
