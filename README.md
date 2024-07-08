@@ -1,7 +1,7 @@
-![Package](https://img.shields.io/pypi/v/poincare?label=poincare)
-![CodeStyle](https://img.shields.io/badge/code%20style-black-000000.svg)
-![License](https://img.shields.io/pypi/l/poincare?label=license)
 ![PyVersion](https://img.shields.io/pypi/pyversions/poincare?label=python)
+![Package](https://img.shields.io/pypi/v/poincare?label=PyPI)
+![Conda Version](https://img.shields.io/conda/vn/conda-forge/poincare)
+![License](https://img.shields.io/pypi/l/poincare?label=license)
 [![CI](https://github.com/maurosilber/poincare/actions/workflows/ci.yml/badge.svg)](https://github.com/maurosilber/poincare/actions/workflows/ci.yml)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/maurosilber/poincare/main.svg)](https://results.pre-commit.ci/latest/github/maurosilber/poincare/main)
 
@@ -15,7 +15,7 @@ To define the system
 
 $$ \\frac{dx}{dt} = -x \\quad \\text{with} \\quad x(0) = 1 $$
 
-we write can:
+we can write:
 
 ```python
 >>> from poincare import Variable, System, initial
@@ -30,8 +30,7 @@ we write can:
 
 ### Simulation
 
-To simulate that system,
-we do:
+To simulate that system:
 
 ```python
 >>> from poincare import Simulator
@@ -50,7 +49,7 @@ which can be plotted with `.plot()`.
 ### Changing initial conditions
 
 To change the initial condition,
-we can pass a dictionary to the \`solve\`\` method:
+we can pass a dictionary to the `solve` method:
 
 ```python
 >>> sim.solve(values={Model.x: 2}, save_at=range(3))
@@ -153,7 +152,7 @@ time
 2     0.271001  0.542003
 ```
 
-But we can break that connection by passing `y` initial value directly:
+But we can break that connection by passing `y`'s initial value directly:
 
 ```python
 >>> Simulator(Model).solve(values={Model.c: 2, Model.y: 2}, save_at=range(3))
@@ -221,7 +220,7 @@ and [`pint-pandas`](https://github.com/hgrecco/pint-pandas).
 >>> result = Simulator(Model).solve(save_at=range(3))
 ```
 
-The columns have units of m and m/s, respectively.
+The columns have units of `m` and `m/s`, respectively.
 `pint` raises a `DimensionalityError` if we try to add them:
 
 ```python
@@ -247,6 +246,14 @@ which allows to plot the DataFrame with `.plot()`.
 
 ## Installation
 
-```bash
+It can be installed from PyPI:
+
+```
 pip install -U poincare
+```
+
+or conda-forge:
+
+```
+conda install -c conda-forge poincare
 ```
