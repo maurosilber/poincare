@@ -47,6 +47,8 @@ class Problem:
     p: Sequence[Number]
     transform: Transform
     scale: Sequence[Number | pint.Quantity]
+    y_names: Sequence[str]
+    y_scale: Sequence[Number | pint.Quantity]
 
 
 def rescale(q: Number | pint.Quantity) -> Number:
@@ -142,6 +144,7 @@ class Simulator:
             dtype=float,
             count=len(self.compiled.parameters),
         )
+        y_scale = [get_scale(content[k]) for k in self.compiled.variables]
         scale = [get_scale(result[k]) for k in self.transform.output.keys()]
         return Problem(
             rhs=self.compiled.func,
@@ -150,6 +153,8 @@ class Simulator:
             p=p0,
             transform=compiled_transform.func,
             scale=scale,
+            y_names=self.compiled.variables,
+            y_scale=y_scale,
         )
 
     def solve(
@@ -162,7 +167,7 @@ class Simulator:
     ):
         problem = self.create_problem(values, t_span=t_span)
         solution = solver(problem, save_at=np.asarray(save_at))
-        return pd.DataFrame(
+        df = pd.DataFrame(
             {
                 k: pint_pandas.PintArray(x * s.magnitude, pint_pandas.PintType(s.units))
                 if isinstance(s, pint.Quantity)
@@ -173,6 +178,8 @@ class Simulator:
             },
             index=pd.Series(solution.t, name="time"),
         )
+        df.attrs["last_state"] = solution.last_state
+        return df
 
     def interact(
         self,

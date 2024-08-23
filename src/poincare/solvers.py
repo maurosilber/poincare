@@ -33,6 +33,13 @@ class Solver(Protocol):
 class Solution:
     t: NDArray
     y: NDArray
+    _last_state: NDArray | None = None
+
+    @property
+    def last_state(self):
+        if self._last_state is None:
+            return self.y
+        return self._last_state
 
 
 def _solve_ivp_scipy(
@@ -68,7 +75,10 @@ def _transform(problem: Problem, solution: Solution) -> Solution:
         problem.p,
         out.T,
     ).T
-    return Solution(solution.t, out)
+    last_state = {
+        k: x * s for k, s, x in zip(problem.y_names, problem.y_scale, solution.y[:, -1])
+    }
+    return Solution(solution.t, out, last_state)
 
 
 def _solve_numbalsoda(problem: Problem, solver, *, save_at: np.ndarray, atol, rtol):
