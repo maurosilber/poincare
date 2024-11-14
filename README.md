@@ -237,7 +237,7 @@ We can remove the units and set them as string metadata with:
              x              v
 unit     meter meter / second
 time
-0     1.000000       0.000000
+0          1.0            0.0
 1     0.540366      -0.841561
 2    -0.416308      -0.909791
 ```
@@ -256,4 +256,25 @@ or conda-forge:
 
 ```
 conda install -c conda-forge poincare
+```
+
+## Development
+
+This project is managed by [pixi](https://pixi.sh).
+You can install it for development using:
+
+```sh
+git clone https://github.com/{{ github_username }}/{{ project_name }}
+cd {{ project_name }}
+pixi run pre-commit-install
+```
+
+Pre-commit hooks are used to lint and format the project.
+
+### Testing
+
+Run tests using:
+
+```sh
+pixi run test
 ```

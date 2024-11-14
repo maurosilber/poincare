@@ -1,5 +1,0 @@
-cloudpickle
-jax[cpu]
-matplotlib
-numba
-pytest

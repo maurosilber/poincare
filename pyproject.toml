@@ -1,54 +1,126 @@
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "poincare"
-authors = [
-    { name="Hernán E. Grecco", email="hernan.grecco@gmail.com" },
-    { name="Mauro Silberberg", email="maurosilber@gmail.com" },
-]
 description = "Simulation of dynamical systems."
-requires-python = ">=3.7"
-keywords = [
-    "dynamical systems",
-    "differential equations",
-    "ODE",
+dynamic = ["version"]
+authors = [
+  { name = "Hernán E. Grecco", email = "hernan.grecco@gmail.com" },
+  { name = "Mauro Silberberg", email = "maurosilber@gmail.com" },
 ]
-license = { file="LICENSE" }
+readme = { file = "README.md", content-type = "text/markdown" }
+license = { text = "MIT" }
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering",
-    "Topic :: Software Development :: Libraries",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Libraries",
 ]
-dynamic = ["dependencies", "optional-dependencies", "version"]
+keywords = ["dynamical systems", "differential equations", "ODE"]
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pint",
+  "pint-pandas",
+  "scipy",
+  "symbolite >= 0.6.0",
+  "tabulate",
+  "typing_extensions",
+]
 
-[project.readme]
-file = "README.md"
-content-type = "text/markdown"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.dynamic]
-dependencies = {file = "requirements.txt"}
-optional-dependencies.test = {file = "requirements.test.txt"}
-optional-dependencies.full = {file = "requirements.full.txt"}
+[project.optional-dependencies]
+interactive = ["ipywidgets"]
 
 [project.urls]
-"Homepage" = "https://github.com/maurosilber/poincare"
-"Bug Tracker" = "https://github.com/maurosilber/poincare/issues"
+Homepage = "https://github.com/maurosilber/poincare"
+Issues = "https://github.com/maurosilber/poincare/issues"
+Documentation = "https://maurosilber.github.io/poincare"
 
-[tool.setuptools_scm]
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { git = true }]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
 pythonpath = "."
 
-[tool.ruff]
-select = ["E", "F", "I"]
-ignore = ["E501"]
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.pixi.project]
+channels = ["https://fast.prefix.dev/conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[tool.pixi.environments]
+lint = { features = ["lint"], no-default-feature = true }
+build = { features = ["build"], no-default-feature = true }
+test = { features = ["test"], solve-group = "default" }
+test-py310 = ["test", "py310"]
+test-py311 = ["test", "py311"]
+test-py312 = ["test", "py312"]
+
+[tool.pixi.dependencies]
+numpy = "*"
+pandas = "*"
+pint = "*"
+pint-pandas = "*"
+scipy = "*"
+tabulate = "*"
+typing_extensions = "*"
+symbolite = ">=0.6.0"
+
+[tool.pixi.feature.lint.dependencies]
+pre-commit = "*"
+pre-commit-hooks = "*"
+taplo = "*"
+ruff = "*"
+mdformat = "*"
+mdformat-ruff = "*"
+
+[tool.pixi.feature.lint.tasks]
+pre-commit-install = "pre-commit install"
+lint = "pre-commit run"
+
+[tool.pixi.feature.build.dependencies]
+uv = "*"
+
+[tool.pixi.feature.build.tasks]
+build = "uv build"
+publish = "uv publish"
+
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+cloudpickle = "<3.1.0"
+matplotlib = "*"
+jax = "*"
+numba = "*"
+ipywidgets = "*"
+
+[tool.pixi.feature.test.pypi-dependencies]
+poincare = { path = ".", editable = true }
+
+[tool.pixi.feature.test.tasks]
+test = "pytest --doctest-modules"
+
+[tool.pixi.feature.py310.dependencies]
+python = "3.10.*"
+
+[tool.pixi.feature.py311.dependencies]
+python = "3.11.*"
+
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
