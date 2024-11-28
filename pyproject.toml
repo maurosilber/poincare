@@ -68,9 +68,9 @@ platforms = ["osx-arm64", "linux-64"]
 [tool.pixi.environments]
 lint = { features = ["lint"], no-default-feature = true }
 build = { features = ["build"], no-default-feature = true }
-test = { features = ["test"], solve-group = "default" }
-test-py310 = ["test", "py310"]
-test-py311 = ["test", "py311"]
+test = { features = ["test", "numbalsoda"], solve-group = "default" }
+test-py310 = ["test", "py310", "numbalsoda"]
+test-py311 = ["test", "py311", "numbalsoda"]
 test-py312 = ["test", "py312"]
 
 [tool.pixi.dependencies]
@@ -109,6 +109,9 @@ matplotlib = "*"
 jax = "*"
 numba = "*"
 ipywidgets = "*"
+
+[tool.pixi.feature.numbalsoda.dependencies]
+numbalsoda = "*"
 
 [tool.pixi.feature.test.pypi-dependencies]
 poincare = { path = ".", editable = true }
