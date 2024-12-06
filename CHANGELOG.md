@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Add event handling to `Simulator` using `scipy-events`.
 - Change `System.variables` and `System.parameters` from `DataFrame` to `Series`.
 
 ## 0.5.0

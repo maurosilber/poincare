@@ -31,6 +31,7 @@ dependencies = [
   "symbolite >= 0.6.0",
   "tabulate",
   "typing_extensions",
+  "scipy-events",
 ]
 
 [project.optional-dependencies]

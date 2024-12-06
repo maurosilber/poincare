@@ -35,6 +35,7 @@ from .types import (
 
 if TYPE_CHECKING:
     import ipywidgets
+    from scipy_events.core import Event
 
 Components = Constant | Parameter | Variable | Derivative
 
@@ -156,23 +157,48 @@ class Simulator:
         self,
         values: Mapping[Components, Initial | Symbol] = {},
         *,
-        t_span: tuple[float, float] = (0, np.inf),
-        save_at: ArrayLike,
+        t_span: tuple[float, float] | None = None,
+        save_at: ArrayLike | None = None,
         solver: solvers.Solver = solvers.LSODA(),
+        events: Sequence[Event] = (),
     ):
+        if save_at is not None:
+            save_at = np.asarray(save_at)
+
+        if t_span is None:
+            if save_at is None:
+                raise TypeError("must provide t_span and/or save_at.")
+            t_span = (0, save_at[-1])
+
         problem = self.create_problem(values, t_span=t_span)
-        solution = solver(problem, save_at=np.asarray(save_at))
-        return pd.DataFrame(
-            {
-                k: pint_pandas.PintArray(x * s.magnitude, pint_pandas.PintType(s.units))
-                if isinstance(s, pint.Quantity)
-                else x * s
-                for k, s, x in zip(
-                    self.transform.output.keys(), problem.scale, solution.y.T
-                )
-            },
-            index=pd.Series(solution.t, name="time"),
-        )
+        solution = solver(problem, save_at=save_at, events=events)
+
+        def _convert(t, y):
+            return pd.DataFrame(
+                {
+                    k: pint_pandas.PintArray(
+                        x * s.magnitude, pint_pandas.PintType(s.units)
+                    )
+                    if isinstance(s, pint.Quantity)
+                    else x * s
+                    for k, s, x in zip(self.transform.output.keys(), problem.scale, y.T)
+                },
+                index=pd.Series(t, name="time"),
+            )
+
+        df = _convert(solution.t, solution.y)
+        if len(events) > 0:
+            df_events = pd.concat(
+                [
+                    _convert(t, y).assign(event=i)
+                    for i, (t, y) in enumerate(
+                        zip(solution.t_events, solution.y_events)
+                    )
+                ]
+            )
+            if len(df_events) > 0:
+                df = pd.concat((df, df_events))
+        return df
 
     def interact(
         self,

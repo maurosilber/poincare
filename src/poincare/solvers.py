@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import weakref
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, Protocol, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import integrate
+from scipy_events import solve_ivp
+from scipy_events.core import Event
 from typing_extensions import assert_never
 
 if TYPE_CHECKING:
@@ -26,13 +28,21 @@ _cache = weakref.WeakKeyDictionary()
 
 
 class Solver(Protocol):
-    def __call__(self, problem: Problem, *, save_at) -> Solution: ...
+    def __call__(
+        self,
+        problem: Problem,
+        *,
+        save_at: NDArray | None = None,
+        events: Sequence[Event] = (),
+    ) -> Solution: ...
 
 
 @dataclass
 class Solution:
     t: NDArray
     y: NDArray
+    t_events: Sequence[NDArray] = ()
+    y_events: Sequence[NDArray] = ()
 
 
 def _solve_ivp_scipy(
@@ -40,21 +50,31 @@ def _solve_ivp_scipy(
     method: type[integrate.OdeSolver],
     options: dict,
     *,
-    save_at: np.ndarray,
+    save_at: NDArray | None = None,
+    events: Sequence[Event] = (),
 ):
     dy = np.empty_like(problem.y)
-    solution = integrate.solve_ivp(
+    solution = solve_ivp(
         problem.rhs,
-        (problem.t[0], min(problem.t[1], save_at[-1])),
+        problem.t,
         problem.y,
-        method=method,  # type: ignore
+        method=method,
         t_eval=save_at,
         args=(problem.p, dy),
+        events=events,
         **options,
     )
     if solution.status == -1:
         raise RuntimeError(solution.message)
-    return _transform(problem, solution)
+    return _transform(
+        problem,
+        Solution(
+            np.asarray(solution.t),
+            np.asarray(solution.y),
+            solution.t_events,
+            solution.y_events,
+        ),
+    )
 
 
 def _transform(problem: Problem, solution: Solution) -> Solution:
@@ -68,10 +88,23 @@ def _transform(problem: Problem, solution: Solution) -> Solution:
         problem.p,
         out.T,
     ).T
-    return Solution(solution.t, out)
+    return replace(solution, y=out)
 
 
-def _solve_numbalsoda(problem: Problem, solver, *, save_at: np.ndarray, atol, rtol):
+def _solve_numbalsoda(
+    problem: Problem,
+    solver,
+    *,
+    save_at: NDArray | None = None,
+    events: Sequence[Event],
+    atol: float | NDArray,
+    rtol: float | NDArray,
+):
+    if len(events) > 0:
+        raise TypeError("events are not supported by numbalsoda")
+    if save_at is None:
+        raise TypeError("provide an array of evaluation points for numbalsoda")
+
     from numba import TypingError, cfunc
     from numbalsoda import lsoda_sig
 
@@ -105,8 +138,8 @@ def _solve_numbalsoda(problem: Problem, solver, *, save_at: np.ndarray, atol, rt
 @dataclass(frozen=True, kw_only=True)
 class _Base:
     # Relative and absolute tolerences
-    rtol: float | Sequence[float] = 1e-3
-    atol: float | Sequence[float] = 1e-6
+    rtol: float | NDArray = 1e-3
+    atol: float | NDArray = 1e-6
     # Step size. By default, determined by the solver.
     first_step: float | None = None
     max_step: float = np.inf
@@ -115,7 +148,13 @@ class _Base:
         cls._solver_class = solver
         assert cls.__name__ in __all__, cls.__name__
 
-    def __call__(self, problem: Problem, *, save_at: np.ndarray):
+    def __call__(
+        self,
+        problem: Problem,
+        *,
+        save_at: NDArray | None = None,
+        events: Sequence[Event] = (),
+    ):
         return _solve_ivp_scipy(
             problem,
             self._solver_class,
@@ -126,6 +165,7 @@ class _Base:
                 "max_step": self.max_step,
             },
             save_at=save_at,
+            events=events,
         )
 
 
@@ -139,11 +179,21 @@ class LSODA(_Base, solver=integrate.LSODA):
     min_step: float = 0
     implementation: Literal["LSODA", "odeint", "numbalsoda", None] = None
 
-    def __call__(self, problem: Problem, *, save_at: np.ndarray):
+    def __call__(
+        self,
+        problem: Problem,
+        *,
+        save_at: NDArray | None = None,
+        events: Sequence[Event] = (),
+    ):
         match self.implementation:
             case "LSODA":
-                return self._LSODA(problem, save_at=save_at)
+                return self._LSODA(problem, save_at=save_at, events=events)
             case "odeint":
+                if len(events) > 0:
+                    raise TypeError("events are not supported by odeint")
+                if save_at is None:
+                    raise TypeError("provide an array of evaluation points for odeint")
                 return self._odeint(problem, save_at=save_at)
             case "numbalsoda":
                 from numbalsoda import lsoda
@@ -152,18 +202,25 @@ class LSODA(_Base, solver=integrate.LSODA):
                     problem,
                     lsoda,
                     save_at=save_at,
+                    events=events,
                     rtol=self.rtol,
                     atol=self.atol,
                 )
             case None:
-                if problem.t[0] == 0:
-                    return self._odeint(problem, save_at=save_at)
+                if problem.t[0] != 0 or save_at is None or len(events) > 0:
+                    return self._LSODA(problem, save_at=save_at, events=events)
                 else:
-                    return self._LSODA(problem, save_at=save_at)
+                    return self._odeint(problem, save_at=save_at)
             case _:
                 assert_never(self.implementation)
 
-    def _LSODA(self, problem: Problem, *, save_at: np.ndarray):
+    def _LSODA(
+        self,
+        problem: Problem,
+        *,
+        save_at: NDArray | None = None,
+        events: Sequence[Event] = (),
+    ):
         return _solve_ivp_scipy(
             problem,
             self._solver_class,
@@ -175,9 +232,15 @@ class LSODA(_Base, solver=integrate.LSODA):
                 min_step=self.min_step,
             ),
             save_at=save_at,
+            events=events,
         )
 
-    def _odeint(self, problem: Problem, *, save_at: np.ndarray):
+    def _odeint(
+        self,
+        problem: Problem,
+        *,
+        save_at: NDArray,
+    ):
         dy = np.empty_like(problem.y)
         y = integrate.odeint(
             problem.rhs,
@@ -219,10 +282,16 @@ class DOP853(_Base, solver=integrate.DOP853):
 
     implementation: Literal["scipy", "numbalsoda"] = "scipy"
 
-    def __call__(self, problem: Problem, *, save_at: np.ndarray):
+    def __call__(
+        self,
+        problem: Problem,
+        *,
+        save_at: NDArray | None = None,
+        events: Sequence[Event] = (),
+    ):
         match self.implementation:
             case "scipy":
-                return super().__call__(problem, save_at=save_at)
+                return super().__call__(problem, save_at=save_at, events=events)
             case "numbalsoda":
                 from numbalsoda import dop853
 
@@ -230,6 +299,7 @@ class DOP853(_Base, solver=integrate.DOP853):
                     problem,
                     dop853,
                     save_at=save_at,
+                    events=events,
                     rtol=self.rtol,
                     atol=self.atol,
                 )
