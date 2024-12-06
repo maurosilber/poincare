@@ -1,3 +1,7 @@
+## Unreleased
+
+- Change `System.variables` and `System.parameters` from `DataFrame` to `Series`.
+
 ## 0.5.0
 
 - Update to `symbolite >= 0.6` to support serialization (pickle) of `System`.
