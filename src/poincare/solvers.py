@@ -7,8 +7,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, Sequence
 import numpy as np
 from numpy.typing import NDArray
 from scipy import integrate
-from scipy_events import solve_ivp
-from scipy_events.core import Event
+from scipy_events import Events, solve_ivp
 from typing_extensions import assert_never
 
 if TYPE_CHECKING:
@@ -33,7 +32,7 @@ class Solver(Protocol):
         problem: Problem,
         *,
         save_at: NDArray | None = None,
-        events: Sequence[Event] = (),
+        events: Sequence[Events] = (),
     ) -> Solution: ...
 
 
@@ -51,7 +50,7 @@ def _solve_ivp_scipy(
     options: dict,
     *,
     save_at: NDArray | None = None,
-    events: Sequence[Event] = (),
+    events: Sequence[Events] = (),
 ):
     dy = np.empty_like(problem.y)
     solution = solve_ivp(
@@ -96,7 +95,7 @@ def _solve_numbalsoda(
     solver,
     *,
     save_at: NDArray | None = None,
-    events: Sequence[Event],
+    events: Sequence[Events],
     atol: float | NDArray,
     rtol: float | NDArray,
 ):
@@ -153,7 +152,7 @@ class _Base:
         problem: Problem,
         *,
         save_at: NDArray | None = None,
-        events: Sequence[Event] = (),
+        events: Sequence[Events] = (),
     ):
         return _solve_ivp_scipy(
             problem,
@@ -184,7 +183,7 @@ class LSODA(_Base, solver=integrate.LSODA):
         problem: Problem,
         *,
         save_at: NDArray | None = None,
-        events: Sequence[Event] = (),
+        events: Sequence[Events] = (),
     ):
         match self.implementation:
             case "LSODA":
@@ -219,7 +218,7 @@ class LSODA(_Base, solver=integrate.LSODA):
         problem: Problem,
         *,
         save_at: NDArray | None = None,
-        events: Sequence[Event] = (),
+        events: Sequence[Events] = (),
     ):
         return _solve_ivp_scipy(
             problem,
@@ -287,7 +286,7 @@ class DOP853(_Base, solver=integrate.DOP853):
         problem: Problem,
         *,
         save_at: NDArray | None = None,
-        events: Sequence[Event] = (),
+        events: Sequence[Events] = (),
     ):
         match self.implementation:
             case "scipy":

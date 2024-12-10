@@ -10,6 +10,7 @@ import pandas as pd
 import pint
 import pint_pandas
 from numpy.typing import ArrayLike
+from scipy_events import Events
 from symbolite import Symbol
 
 from . import solvers
@@ -35,7 +36,6 @@ from .types import (
 
 if TYPE_CHECKING:
     import ipywidgets
-    from scipy_events.core import Event
 
 Components = Constant | Parameter | Variable | Derivative
 
@@ -160,7 +160,7 @@ class Simulator:
         t_span: tuple[float, float] | None = None,
         save_at: ArrayLike | None = None,
         solver: solvers.Solver = solvers.LSODA(),
-        events: Sequence[Event] = (),
+        events: Sequence[Events] = (),
     ):
         if save_at is not None:
             save_at = np.asarray(save_at)
@@ -188,16 +188,11 @@ class Simulator:
 
         df = _convert(solution.t, solution.y)
         if len(events) > 0:
-            df_events = pd.concat(
-                [
-                    _convert(t, y).assign(event=i)
-                    for i, (t, y) in enumerate(
-                        zip(solution.t_events, solution.y_events)
-                    )
-                ]
+            df_events = (
+                _convert(t, y).assign(event=i)
+                for i, (t, y) in enumerate(zip(solution.t_events, solution.y_events))
             )
-            if len(df_events) > 0:
-                df = pd.concat((df, df_events))
+            df = pd.concat([df.assign(event=pd.NA), *df_events])
         return df
 
     def interact(

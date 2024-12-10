@@ -31,7 +31,7 @@ dependencies = [
   "symbolite >= 0.6.0",
   "tabulate",
   "typing_extensions",
-  "scipy-events",
+  "scipy-events >= 0.3.1",
 ]
 
 [project.optional-dependencies]
@@ -83,6 +83,7 @@ scipy = "*"
 tabulate = "*"
 typing_extensions = "*"
 symbolite = ">=0.6.0"
+scipy-events = ">=0.3.1"
 
 [tool.pixi.feature.lint.dependencies]
 pre-commit = "*"
