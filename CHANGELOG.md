@@ -1,3 +1,9 @@
+# Changelog
+
+## 0.6.1
+
+- Update to `scipy-events >= 0.3.1`.
+
 ## 0.6.0
 
 - Add event handling to `Simulator` using `scipy-events`.
