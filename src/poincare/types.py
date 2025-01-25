@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import types
 from dataclasses import dataclass
 from typing import Any, ClassVar, Iterator, Literal, Sequence, TypeVar, overload
 from typing import get_type_hints as get_annotations
@@ -9,7 +10,7 @@ import pandas as pd
 import pint
 from symbolite import Scalar, Symbol
 from symbolite import abstract as libabstract
-from symbolite.core import evaluate, substitute
+from symbolite.core import evaluate, evaluate_this, substitute
 from typing_extensions import Self, dataclass_transform
 
 from . import units
@@ -20,6 +21,7 @@ T = TypeVar("T")
 
 
 units.register_with_pint(Symbol)
+units.register_with_pint(Scalar)
 
 
 @units.register_with_pint
@@ -28,13 +30,8 @@ class Constant(Node, Scalar):
         self.default = default
         units.check_units(self, default)
 
-    def eval(self, libsl=None):
-        if libsl is libabstract:
-            return self
-        elif self.default is None:
-            raise units.EvalUnitError
-        else:
-            return evaluate(self.default, libsl)
+    def eval(self, libsl: types.ModuleType | None = None):
+        return evaluate(self, libsl)
 
     def _copy_from(self, parent: System):
         return self.__class__(default=substitute(self.default, NodeMapper(parent)))
@@ -91,13 +88,8 @@ class Parameter(Node, Scalar):
         self.default = default
         units.check_units(self, default)
 
-    def eval(self, libsl=None):
-        if libsl is libabstract:
-            return self
-        elif self.default is None:
-            raise units.EvalUnitError
-        else:
-            return evaluate(self.default, libsl)
+    def eval(self, libsl: types.ModuleType | None = None):
+        return evaluate(self, libsl)
 
     def _copy_from(self, parent: System):
         return self.__class__(default=substitute(self.default, NodeMapper(parent)))
@@ -138,13 +130,8 @@ class Variable(Node, Scalar):
     def __getnewargs__(self):
         return (self.initial, self.derivatives, self.equation_order)
 
-    def eval(self, libsl=None):
-        if libsl is libabstract:
-            return self
-        elif self.initial is None:
-            raise units.EvalUnitError
-        else:
-            return evaluate(self.initial, libsl)
+    def eval(self, libsl: types.ModuleType | None = None):
+        return evaluate(self, libsl)
 
     def derive(self, *, initial: Initial | None = None) -> Derivative:
         return Derivative(self, initial=initial, order=1)
@@ -257,13 +244,8 @@ class Derivative(Node, Symbol):
         }
         return args, kwargs
 
-    def eval(self, libsl=None):
-        if libsl is libabstract:
-            return self
-        elif self.initial is None:
-            raise units.EvalUnitError
-        else:
-            return evaluate(self.initial, libsl)
+    def eval(self, libsl: types.ModuleType | None = None):
+        return evaluate(self, libsl)
 
     def _copy_from(self, parent: Node) -> Self:
         variable: Variable = getattr(parent, self.variable.name)
@@ -430,13 +412,8 @@ class Independent(Node, Scalar):
             case _:
                 raise NotADirectoryError("more than one independent variable")
 
-    def eval(self, libsl=None):
-        if libsl is libabstract:
-            return self
-        elif self.default is None:
-            raise units.EvalUnitError
-        else:
-            return evaluate(self.default, libsl)
+    def eval(self, libsl: types.ModuleType | None = None):
+        return evaluate(self, libsl)
 
     def __set__(self, obj, value: Initial | Symbol):
         if isinstance(value, Independent):
@@ -458,6 +435,28 @@ class Independent(Node, Scalar):
             return NotImplemented
 
         return self.default == other.default and super().__eq__(other)
+
+
+@evaluate_this.register
+def evaluate_this_use_default(
+    self: Constant | Parameter | Independent, libsl: types.ModuleType
+):
+    if libsl is libabstract:
+        return self
+    elif self.default is None:
+        raise units.EvalUnitError
+    else:
+        return evaluate(self.default, libsl)
+
+
+@evaluate_this.register
+def evaluate_this_initial(self: Variable | Derivative, libsl: types.ModuleType):
+    if libsl is libabstract:
+        return self
+    elif self.initial is None:
+        raise units.EvalUnitError
+    else:
+        return evaluate(self.initial, libsl)
 
 
 class OwnedNamerDict(dict):
