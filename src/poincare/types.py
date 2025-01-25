@@ -10,7 +10,7 @@ import pandas as pd
 import pint
 from symbolite import Scalar, Symbol
 from symbolite import abstract as libabstract
-from symbolite.core import evaluate, evaluate_this, substitute
+from symbolite.core import evaluate, evaluate_impl, substitute
 from typing_extensions import Self, dataclass_transform
 
 from . import units
@@ -31,7 +31,7 @@ class Constant(Node, Scalar):
         units.check_units(self, default)
 
     def eval(self, libsl: types.ModuleType | None = None):
-        return evaluate(self, libsl)
+        return evaluate_impl(self, libsl)
 
     def _copy_from(self, parent: System):
         return self.__class__(default=substitute(self.default, NodeMapper(parent)))
@@ -437,8 +437,8 @@ class Independent(Node, Scalar):
         return self.default == other.default and super().__eq__(other)
 
 
-@evaluate_this.register
-def evaluate_this_use_default(
+@evaluate_impl.register
+def evaluate_impl_use_default(
     self: Constant | Parameter | Independent, libsl: types.ModuleType
 ):
     if libsl is libabstract:
@@ -446,17 +446,17 @@ def evaluate_this_use_default(
     elif self.default is None:
         raise units.EvalUnitError
     else:
-        return evaluate(self.default, libsl)
+        return evaluate_impl(self.default, libsl)
 
 
-@evaluate_this.register
-def evaluate_this_initial(self: Variable | Derivative, libsl: types.ModuleType):
+@evaluate_impl.register
+def evaluate_impl_initial(self: Variable | Derivative, libsl: types.ModuleType):
     if libsl is libabstract:
         return self
     elif self.initial is None:
         raise units.EvalUnitError
     else:
-        return evaluate(self.initial, libsl)
+        return evaluate_impl(self.initial, libsl)
 
 
 class OwnedNamerDict(dict):
