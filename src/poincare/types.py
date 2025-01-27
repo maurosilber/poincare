@@ -10,7 +10,7 @@ import pandas as pd
 import pint
 from symbolite import Scalar, Symbol
 from symbolite import abstract as libabstract
-from symbolite.core import evaluate, evaluate_impl, substitute
+from symbolite.core import evaluate_impl, substitute
 from typing_extensions import Self, dataclass_transform
 
 from . import units
@@ -29,9 +29,6 @@ class Constant(Node, Scalar):
     def __init__(self, *, default: Initial | None):
         self.default = default
         units.check_units(self, default)
-
-    def eval(self, libsl: types.ModuleType | None = None):
-        return evaluate_impl(self, libsl)
 
     def _copy_from(self, parent: System):
         return self.__class__(default=substitute(self.default, NodeMapper(parent)))
@@ -88,9 +85,6 @@ class Parameter(Node, Scalar):
         self.default = default
         units.check_units(self, default)
 
-    def eval(self, libsl: types.ModuleType | None = None):
-        return evaluate(self, libsl)
-
     def _copy_from(self, parent: System):
         return self.__class__(default=substitute(self.default, NodeMapper(parent)))
 
@@ -129,9 +123,6 @@ class Variable(Node, Scalar):
 
     def __getnewargs__(self):
         return (self.initial, self.derivatives, self.equation_order)
-
-    def eval(self, libsl: types.ModuleType | None = None):
-        return evaluate(self, libsl)
 
     def derive(self, *, initial: Initial | None = None) -> Derivative:
         return Derivative(self, initial=initial, order=1)
@@ -243,9 +234,6 @@ class Derivative(Node, Symbol):
             "order": self.order,
         }
         return args, kwargs
-
-    def eval(self, libsl: types.ModuleType | None = None):
-        return evaluate(self, libsl)
 
     def _copy_from(self, parent: Node) -> Self:
         variable: Variable = getattr(parent, self.variable.name)
@@ -411,9 +399,6 @@ class Independent(Node, Scalar):
                 return independent.pop()
             case _:
                 raise NotADirectoryError("more than one independent variable")
-
-    def eval(self, libsl: types.ModuleType | None = None):
-        return evaluate(self, libsl)
 
     def __set__(self, obj, value: Initial | Symbol):
         if isinstance(value, Independent):
