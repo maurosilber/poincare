@@ -422,26 +422,29 @@ class Independent(Node, Scalar):
         return self.default == other.default and super().__eq__(other)
 
 
-@evaluate_impl.register
-def evaluate_impl_use_default(
-    self: Constant | Parameter | Independent, libsl: types.ModuleType
-):
-    if libsl is libabstract:
-        return self
-    elif self.default is None:
-        raise units.EvalUnitError
-    else:
-        return evaluate_impl(self.default, libsl)
+# TODO: Change to union types when Python 3.10 is dropped.
+for cls in (Constant, Parameter, Independent):
+
+    @evaluate_impl.register
+    def evaluate_impl_use_default(self: cls, libsl: types.ModuleType):
+        if libsl is libabstract:
+            return self
+        elif self.default is None:
+            raise units.EvalUnitError
+        else:
+            return evaluate_impl(self.default, libsl)
 
 
-@evaluate_impl.register
-def evaluate_impl_initial(self: Variable | Derivative, libsl: types.ModuleType):
-    if libsl is libabstract:
-        return self
-    elif self.initial is None:
-        raise units.EvalUnitError
-    else:
-        return evaluate_impl(self.initial, libsl)
+for cls in (Variable, Derivative):
+
+    @evaluate_impl.register
+    def evaluate_impl_initial(self: cls, libsl: types.ModuleType):
+        if libsl is libabstract:
+            return self
+        elif self.initial is None:
+            raise units.EvalUnitError
+        else:
+            return evaluate_impl(self.initial, libsl)
 
 
 class OwnedNamerDict(dict):
