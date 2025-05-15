@@ -5346,8 +5346,8 @@ packages:
   timestamp: 1733222855563
 - pypi: ./
   name: poincare
-  version: 0.6.2.dev1+ga91c352.d20250515
-  sha256: 4921c235a25bd6913f43136aac803670933b5bedb8dbd7a5ddfdfce3330f0b0a
+  version: 0.6.2.dev2+gaa7f8cb.d20250515
+  sha256: eba4c3e83e7669069adff432f20ed994c502bb3f5786be75228038966aec8c59
   requires_dist:
   - numpy
   - pandas
@@ -5355,7 +5355,7 @@ packages:
   - pint-pandas
   - scipy
   - scipy-events>=0.3.1
-  - symbolite>=0.6.0
+  - symbolite>=0.6.0,<0.7
   - tabulate
   - typing-extensions
   - ipywidgets ; extra == 'interactive'

@@ -28,7 +28,7 @@ dependencies = [
   "pint",
   "pint-pandas",
   "scipy",
-  "symbolite >= 0.6.0",
+  "symbolite >= 0.6.0, < 0.7",
   "tabulate",
   "typing_extensions",
   "scipy-events >= 0.3.1",
@@ -82,7 +82,7 @@ pint-pandas = "*"
 scipy = "*"
 tabulate = "*"
 typing_extensions = "*"
-symbolite = ">=0.6.0"
+symbolite = ">=0.6.0,<0.7"
 scipy-events = ">=0.3.1"
 
 [tool.pixi.feature.lint.dependencies]
