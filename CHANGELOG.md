@@ -2,6 +2,10 @@
 
 ## 0.6.1
 
+- Add upper bound for `symbolite<0.7`.
+
+## 0.6.1
+
 - Update to `scipy-events >= 0.3.1`.
 
 ## 0.6.0
