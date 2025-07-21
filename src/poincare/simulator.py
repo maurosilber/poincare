@@ -227,15 +227,17 @@ class Simulator:
                 case numbers.Real() as default:
                     if v == 0:
                         v = 1
+                    min, max = sorted((default / 10, v * 10))
                     widget = ipywidgets.FloatSlider(
                         default,
-                        min=default / 10,
-                        max=v * 10,
-                        step=0.1 * v,
+                        min=min,
+                        max=max,
+                        step=0.1 * abs(v),
                     )
                 case pint.Quantity(magnitude=v, units=unit):
+                    min, max = sorted((v / 10, v * 10))
                     widget = ipywidgets.FloatSlider(
-                        v, min=v / 10, max=v * 10, step=0.1 * v
+                        v, min=min, max=max, step=0.1 * abs(v)
                     )
                 case (min, max, step):
                     v = self.compiled.mapper[k]
