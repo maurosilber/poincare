@@ -1,4 +1,4 @@
-name: Test and release when tagged
+name: CI
 
 on: [push]
 

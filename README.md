@@ -264,9 +264,9 @@ This project is managed by [pixi](https://pixi.sh).
 You can install it for development using:
 
 ```sh
-git clone https://github.com/{{ github_username }}/{{ project_name }}
-cd {{ project_name }}
-pixi run pre-commit-install
+git clone https://github.com/maurosilber/poincare
+cd poincare
+pixi run pre-commit-install  # install pre-commit hooks
 ```
 
 Pre-commit hooks are used to lint and format the project.
