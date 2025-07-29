@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.6.1
+## 0.6.3
+
+- Fix `Simulator.interact` when default values are negative (@tdinapoli).
+
+## 0.6.2
 
 - Add upper bound for `symbolite<0.7`.
 
